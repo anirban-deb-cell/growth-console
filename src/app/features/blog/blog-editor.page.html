@@ -1,0 +1,372 @@
+<header class="editor-head">
+  <div>
+    <a routerLink="/blog" class="back-link">← All posts</a>
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px">
+      <h1 style="margin: 0">{{ isEditing ? 'Edit blog post' : 'New blog post' }}</h1>
+      @if (isMock) { <span class="sample-badge">Sample data</span> }
+    </div>
+    <p>For {{ clients.current().name }} · {{ siteHost }}. The panel on the right shows how ready the post is for Google as you type. <b>Publish</b> then runs every step: SEO checks, JSON-LD schema, metadata, conversion tracking and sitemap.</p>
+  </div>
+</header>
+
+@if (loading) {
+  <div class="alert info" role="status"><div class="body"><strong>Opening the post…</strong></div></div>
+}
+@if (loadError) {
+  <div class="alert danger" role="alert"><div class="body"><strong>Couldn’t open this post</strong><span>{{ loadError }}</span></div><a routerLink="/blog" class="btn">Back to all posts</a></div>
+}
+
+<div class="editor-layout">
+<div class="editor-form">
+<section class="editor-card">
+  <h2>Post details</h2>
+  <div class="field-row">
+    <div class="field">
+      <label for="title">Header / title</label>
+      <input id="title" type="text" placeholder="Knee Replacement Cost in Hyderabad: What’s Included"
+        [(ngModel)]="title" (ngModelChange)="onTitleChange()">
+    </div>
+  </div>
+  <div class="field-row cols-3">
+    <div class="field">
+      <label for="slug">Slug URI</label>
+      <input id="slug" type="text" placeholder="knee-replacement-cost-hyderabad"
+        [(ngModel)]="slug" (ngModelChange)="onSlugEdited()" (blur)="onSlugBlur()">
+      <span class="hint">/blog/{{ effectiveSlug() }}</span>
+    </div>
+    <div class="field">
+      <label for="category">Category</label>
+      <input id="category" type="text" placeholder="Orthopedics" [(ngModel)]="category">
+    </div>
+    <div class="field">
+      <label for="author">Author / medical reviewer <span class="optional">(optional)</span></label>
+      <input id="author" type="text" placeholder="[Doctor name], MS Ortho" [(ngModel)]="author">
+    </div>
+    <div class="field">
+      <label for="publishedAt">Published date</label>
+      <input id="publishedAt" type="date" [(ngModel)]="publishedAt">
+    </div>
+  </div>
+  <div class="field-row cols-3">
+    <div class="field">
+      <label for="readMins">Read time (mins)</label>
+      <input id="readMins" type="number" min="1" [(ngModel)]="readMins">
+      <span class="hint">Suggested: {{ suggestedReadMins }} min · <button type="button" class="link-btn" (click)="useSuggestedReadMins()">use this</button></span>
+    </div>
+    <div class="field">
+      <label for="conversionId">Google Ads conversion ID <span class="optional">(optional)</span></label>
+      <input id="conversionId" type="text" placeholder="AW-18387395398/label" [(ngModel)]="conversionId">
+    </div>
+  </div>
+</section>
+
+<section class="editor-card">
+  <h2>Content</h2>
+  <div class="field">
+    <label for="excerpt">Description <span class="optional">(short summary, used for the list card and meta description)</span></label>
+    <textarea id="excerpt" rows="2" placeholder="One or two sentences that sum up the post..." [(ngModel)]="excerpt"></textarea>
+  </div>
+  <div class="field">
+    <label for="intro">Intro <span class="optional">(shown before the featured media — separate paragraphs with a blank line)</span></label>
+    <textarea id="intro" rows="4" placeholder="Opening paragraph(s)..." [(ngModel)]="intro"></textarea>
+  </div>
+</section>
+
+<section class="editor-card">
+  <h2>Cover media</h2>
+  <div class="field">
+    <label for="postVideo">YouTube video URL <span class="optional">(optional)</span></label>
+    <input id="postVideo" type="text" placeholder="https://www.youtube.com/watch?v=..." [(ngModel)]="postVideoUrl">
+    @if (postVideoUrl.trim()) {
+      @if (extractYoutubeId(postVideoUrl)) {
+        <span class="hint ok">✓ Video ID detected: {{ extractYoutubeId(postVideoUrl) }}</span>
+      } @else {
+        <span class="hint warn">Couldn't detect a video ID from that link — check it's a full YouTube URL.</span>
+      }
+    }
+  </div>
+
+  <div class="field">
+    <label>Photos <span class="optional">(optional — first one is used as the cover/share image)</span></label>
+    <div class="image-list">
+      @for (image of postImages; track image; let i = $index) {
+        <div class="image-row">
+          <label class="image-picker">
+            @if (image.previewUrl) {
+              <img [src]="image.previewUrl" alt="">
+            } @else {
+              <span>Choose file</span>
+            }
+            <input type="file" accept="image/*" (change)="onImageSelected($event, image)">
+          </label>
+          <div class="image-meta">
+            <input type="text" placeholder="Choose a file to upload, or paste an image link" [(ngModel)]="image.path" [disabled]="!!image.uploading">
+            @if (image.uploading) { <span class="hint">Uploading…</span> }
+            @if (image.error) { <span class="hint warn">{{ image.error }}</span> }
+          </div>
+          <button type="button" class="icon-btn" (click)="removePostImage(i)" aria-label="Remove photo">✕</button>
+        </div>
+      }
+    </div>
+    <button type="button" class="btn" (click)="addPostImage()">+ Add photo</button>
+  </div>
+</section>
+
+<section class="editor-card">
+  <div class="editor-card-head">
+    <h2>Sub topics</h2>
+    <button type="button" class="btn" (click)="addSubtopic()">+ Add sub topic</button>
+  </div>
+
+  @for (subtopic of subtopics; track subtopic; let si = $index) {
+    <div class="subtopic-card">
+      <div class="subtopic-card-head">
+        <span class="subtopic-index">{{ si + 1 }}</span>
+        <button type="button" class="icon-btn" (click)="removeSubtopic(si)" aria-label="Remove sub topic">✕</button>
+      </div>
+
+      <div class="field">
+        <label>Heading</label>
+        <input type="text" placeholder="What happens on the day of surgery" [(ngModel)]="subtopic.heading">
+      </div>
+      <div class="field">
+        <label>Description <span class="optional">(separate paragraphs with a blank line)</span></label>
+        <textarea rows="3" placeholder="Sub topic content..." [(ngModel)]="subtopic.body"></textarea>
+      </div>
+
+      <div class="field-row cols-2">
+        <div class="field">
+          <label>Image <span class="optional">(optional)</span></label>
+          <div class="image-row">
+            <label class="image-picker">
+              @if (subtopic.image.previewUrl) {
+                <img [src]="subtopic.image.previewUrl" alt="">
+              } @else {
+                <span>Choose file</span>
+              }
+              <input type="file" accept="image/*" (change)="onImageSelected($event, subtopic.image)">
+            </label>
+            <div class="image-meta">
+              <input type="text" placeholder="Choose a file, or paste an image link" [(ngModel)]="subtopic.image.path" [disabled]="!!subtopic.image.uploading">
+              @if (subtopic.image.uploading) { <span class="hint">Uploading…</span> }
+              @if (subtopic.image.error) { <span class="hint warn">{{ subtopic.image.error }}</span> }
+            </div>
+            @if (subtopic.image.path) {
+              <button type="button" class="icon-btn" (click)="clearImage(subtopic.image)" aria-label="Remove image">✕</button>
+            }
+          </div>
+        </div>
+        <div class="field">
+          <label>YouTube video URL <span class="optional">(optional)</span></label>
+          <input type="text" placeholder="https://www.youtube.com/watch?v=..." [(ngModel)]="subtopic.videoUrl">
+          @if (subtopic.videoUrl.trim()) {
+            @if (extractYoutubeId(subtopic.videoUrl)) {
+              <span class="hint ok">✓ Video ID detected: {{ extractYoutubeId(subtopic.videoUrl) }}</span>
+            } @else {
+              <span class="hint warn">Couldn't detect a video ID from that link.</span>
+            }
+          }
+        </div>
+      </div>
+    </div>
+  }
+</section>
+
+<section class="editor-card">
+  <h2>Tags</h2>
+  <div class="tag-editor">
+    @for (tag of tags; track tag) {
+      <span class="tag-chip">{{ tag }}<button type="button" (click)="removeTag(tag)" aria-label="Remove tag">✕</button></span>
+    }
+    <input type="text" placeholder="Add a tag, press Enter" [(ngModel)]="tagInput" (keydown)="onTagKeydown($event)" (blur)="addTag()">
+  </div>
+</section>
+
+<div class="editor-actions">
+  <button type="button" class="btn primary" [disabled]="!isValid || saving || uploadsPending" (click)="startPublish()">Publish post →</button>
+  <button type="button" class="btn" [disabled]="!isValid || saving || uploadsPending" (click)="saveDraft()">{{ saving ? 'Saving…' : 'Save draft' }}</button>
+  <button type="button" class="btn" [disabled]="!isValid || saving || uploadsPending" (click)="sendForReview()">Send for compliance review</button>
+  <button type="button" class="btn link" [disabled]="!isValid" (click)="generate()">Export JSON</button>
+  @if (!isValid) {
+    <span class="hint warn">Header, slug, category, and description are required.</span>
+  } @else if (uploadsPending) {
+    <span class="hint">Waiting for images to finish uploading…</span>
+  }
+  @if (saveError) {
+    <span class="hint warn" role="alert">{{ saveError }}</span>
+  }
+</div>
+
+@if (generatedJson) {
+  <section class="editor-card output-card" id="generated-output">
+    <div class="editor-card-head">
+      <h2>Generated post data</h2>
+      <div class="output-actions">
+        <button type="button" class="btn" (click)="copyJson()">{{ copied ? 'Copied ✓' : 'Copy' }}</button>
+        <button type="button" class="btn" (click)="downloadJson()">Download .json</button>
+      </div>
+    </div>
+    <p class="hint">This is the exact payload the blog API will receive when the backend is connected.</p>
+    <textarea class="output-json" readonly rows="18">{{ generatedJson }}</textarea>
+  </section>
+}
+</div>
+
+<aside class="readiness">
+  <div class="readiness-card">
+    <div class="readiness-head">
+      <adm-score-ring [score]="seoScore" [size]="76" [showLabel]="false" />
+      <div>
+        <span class="readiness-label">Ready for Google</span>
+        <b>{{ passedChecks }} of {{ seoChecks.length }} checks</b>
+      </div>
+    </div>
+    <ul class="readiness-list">
+      @for (c of seoChecks; track c.label) {
+        <li [class.ok]="c.ok">
+          <span class="mark" aria-hidden="true">{{ c.ok ? '✓' : '!' }}</span>
+          <div><b>{{ c.label }}</b><span>{{ c.detail }}</span></div>
+        </li>
+      }
+    </ul>
+  </div>
+
+  <div class="readiness-card">
+    <span class="readiness-label">Healthcare claims check</span>
+    @if (complianceFindings.length) {
+      <ul class="readiness-list" style="margin-top: 10px">
+        @for (f of complianceFindings; track f.phrase) {
+          <li><span class="mark" aria-hidden="true">!</span><div><b>“{{ f.phrase }}”</b><span>{{ f.reason }}</span></div></li>
+        }
+      </ul>
+    } @else {
+      <p style="margin: 10px 0 0; font-size: 12.5px; color: var(--green-ink)">✓ No guaranteed-outcome or superlative claims found.</p>
+    }
+  </div>
+
+  <div class="readiness-card serp-mini">
+    <span class="readiness-label">Google preview</span>
+    <div class="serp">
+      <span class="serp-site">{{ siteHost }} › blog › {{ effectiveSlug() }}</span>
+      <span class="serp-title">{{ seoTitle }}</span>
+      <span class="serp-desc">{{ excerpt.trim() || 'Your description appears here. Keep it between 120 and 160 characters so Google shows all of it.' }}</span>
+    </div>
+  </div>
+</aside>
+</div>
+
+@if (pipelineOpen) {
+  <div class="pipeline-backdrop" (click)="closePipeline()"></div>
+  <div class="pipeline" role="dialog" aria-modal="true" aria-labelledby="pipeline-title">
+    <header class="pipeline-head">
+      <div>
+        <span class="eyebrow">Publishing</span>
+        <h2 id="pipeline-title">{{ title.trim() }}</h2>
+        <span class="pipeline-url">{{ postUrl }}</span>
+      </div>
+      <button type="button" class="icon-btn" (click)="closePipeline()" aria-label="Close">✕</button>
+    </header>
+
+    @if (isMock) {
+      <div class="pipeline-note">Sample-data mode: the checks, schema and tags below are generated from this post, but it's only saved in this browser.</div>
+    }
+
+    <ol class="steps">
+      @for (step of steps; track step.key; let i = $index) {
+        <li class="step" [class]="step.state" [class.open]="expandedStep === step.key">
+          <button type="button" class="step-row" (click)="toggleStep(step.key)" [disabled]="step.state === 'pending' || step.state === 'running'">
+            <span class="step-icon" aria-hidden="true">
+              @switch (step.state) {
+                @case ('done') { ✓ }
+                @case ('warn') { ! }
+                @case ('running') { <i class="spinner"></i> }
+                @default { {{ i + 1 }} }
+              }
+            </span>
+            <span class="step-text">
+              <b>{{ step.title }}</b>
+              <span>{{ step.state === 'running' ? step.running : step.state === 'pending' ? 'Waiting' : step.summary }}</span>
+            </span>
+            @if (step.state === 'done' || step.state === 'warn') {
+              <span class="step-toggle" aria-hidden="true">{{ expandedStep === step.key ? '−' : '+' }}</span>
+            }
+          </button>
+
+          @if (expandedStep === step.key) {
+            <div class="step-detail">
+              @switch (step.key) {
+                @case ('check') {
+                  <ul class="readiness-list compact">
+                    @for (c of seoChecks; track c.label) {
+                      <li [class.ok]="c.ok"><span class="mark">{{ c.ok ? '✓' : '!' }}</span><div><b>{{ c.label }}</b><span>{{ c.detail }}</span></div></li>
+                    }
+                  </ul>
+                }
+                @case ('draft') {
+                  <p>Revision 1 saved. The draft preview is only visible to logged-in admins until it's published.</p>
+                }
+                @case ('schema') {
+                  <pre class="code">{{ jsonLdPreview }}</pre>
+                  <a class="detail-link" href="https://search.google.com/test/rich-results" target="_blank" rel="noopener">Test in Google Rich Results ↗</a>
+                }
+                @case ('meta') {
+                  <div class="previews">
+                    <div class="serp">
+                      <span class="serp-site">{{ siteHost }} › blog › {{ effectiveSlug() }}</span>
+                      <span class="serp-title">{{ seoTitle }}</span>
+                      <span class="serp-desc">{{ excerpt.trim() }}</span>
+                    </div>
+                    <div class="social-card">
+                      <div class="social-img">
+                        @if (postImages.length && postImages[0].previewUrl) { <img [src]="postImages[0].previewUrl" alt=""> } @else { <span>{{ clients.current().initials }}</span> }
+                      </div>
+                      <div class="social-body">
+                        <span>{{ siteHost }}</span>
+                        <b>{{ seoTitle }}</b>
+                      </div>
+                    </div>
+                  </div>
+                  <pre class="code">{{ metaTags }}</pre>
+                }
+                @case ('tracking') {
+                  @if (conversionValid) {
+                    <p>Both contact buttons on this post send a Google Ads conversion when clicked:</p>
+                    <pre class="code">{{ trackingSnippet }}</pre>
+                  } @else {
+                    <p>Add a Google Ads conversion ID (e.g. <code>AW-18387395398/label</code>) in Post details to count this post's contact clicks as ad conversions.</p>
+                  }
+                }
+                @case ('publish') {
+                  <p>Added to <code>sitemap.xml</code>:</p>
+                  <pre class="code">{{ sitemapEntry }}</pre>
+                  <p>Added to <code>llms.txt</code> for AI search:</p>
+                  <pre class="code">{{ llmsEntry }}</pre>
+                }
+              }
+            </div>
+          }
+        </li>
+      }
+    </ol>
+
+    @if (publishFailed) {
+      <div class="pipeline-failed" role="alert">
+        <div><b>The post wasn’t published</b><span>Fix the problem above, then publish again. Nothing has changed on the website.</span></div>
+        <button type="button" class="btn" (click)="closePipeline()">Back to the editor</button>
+      </div>
+    }
+    @if (pipelineDone) {
+      <div class="pipeline-success">
+        <span class="success-badge" aria-hidden="true">✓</span>
+        <div>
+          <b>{{ publishedStatus === 'scheduled' ? 'Post scheduled' : 'Post published' }}</b>
+          <span>{{ publishedStatus === 'scheduled' ? 'It goes live on ' + publishedAt + ' without anyone pressing a button.' : 'Google can now find it. Request indexing to have it crawled sooner.' }}</span>
+        </div>
+        <div class="success-actions">
+          <a class="btn" href="https://search.google.com/search-console/inspect" target="_blank" rel="noopener">Request indexing ↗</a>
+          <button type="button" class="btn primary" (click)="viewAllPosts()">View all posts</button>
+        </div>
+      </div>
+    }
+  </div>
+}

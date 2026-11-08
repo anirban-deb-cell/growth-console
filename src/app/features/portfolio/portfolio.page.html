@@ -1,0 +1,123 @@
+<div class="page">
+  <header class="page-head">
+    <div class="titles">
+      <div class="title-row">
+        <h1>Client portfolio</h1>
+        <span class="sample-badge">Sample data</span>
+      </div>
+      <p>{{ clients().length }} hospitals &amp; clinics · {{ rangeLabel() }} · amounts in INR</p>
+    </div>
+    <div class="actions">
+      <div class="seg" role="group" aria-label="Date range">
+        @for (r of ranges; track r) {
+          <button type="button" [class.on]="range() === r" [attr.aria-pressed]="range() === r" (click)="range.set(r)">{{ r }}</button>
+        }
+      </div>
+      <button type="button" class="btn">Export portfolio report</button>
+      <button type="button" class="btn primary">+ Add client</button>
+    </div>
+  </header>
+
+  <section class="grid kpis" aria-label="Agency totals">
+    <div class="kpi"><span class="label">Patient enquiries delivered</span><span class="value">6,940</span><div class="foot"><span class="delta good">▲ 14%</span>all clients</div></div>
+    <div class="kpi"><span class="label">Ad spend managed</span><span class="value">₹38.6L<small> / ₹42L</small></span><div class="track" aria-hidden="true"><i style="width: 92%"></i></div><div class="foot">92% of monthly budgets</div></div>
+    <div class="kpi"><span class="label">Blended cost per enquiry</span><span class="value">₹556</span><div class="foot"><span class="delta good">▼ 7%</span>cheaper is better</div></div>
+    <div class="kpi"><span class="label">Appointments booked</span><span class="value">2,412</span><div class="foot"><span class="delta good">▲ 11%</span>34.8% of enquiries</div></div>
+    <div class="kpi"><span class="label">Average Google rating</span><span class="value">4.5<small> / 5</small></span><div class="foot">2,960 reviews · 31 awaiting reply</div></div>
+    <div class="kpi"><span class="label">International enquiries</span><span class="value">412</span><div class="foot"><span class="delta good">▲ 31%</span>from 14 countries</div></div>
+  </section>
+
+  <section class="card" aria-label="Needs attention">
+    <div class="card-head"><h2>Needs attention today</h2><span class="sub">Sorted by impact on patient enquiries</span></div>
+    <div class="alert danger">
+      <app-icon name="alert" [size]="22" />
+      <div class="body"><strong>Aarogya Heart Institute · 22 missed calls not returned within 30 min</strong><span>Mostly evening Cardiology enquiries from Google Ads</span></div>
+      <button type="button" class="btn danger" (click)="open('aarogya')">Open client</button>
+    </div>
+    <div class="alert warn">
+      <app-icon name="trend" [size]="22" />
+      <div class="body"><strong>Lotus Women's &amp; IVF Centre · cost per enquiry up 22%</strong><span>Search competition on “IVF cost” keywords since 18 Sep</span></div>
+      <button type="button" class="btn" (click)="openCampaigns('lotus')">Review campaigns</button>
+    </div>
+    <div class="alert warn">
+      <app-icon name="warning" [size]="22" />
+      <div class="body"><strong>Sunrise Multispeciality · 1 ad flagged by the compliance check</strong><span>“Pain-free in 24 hours” reads as a guaranteed outcome</span></div>
+      <button type="button" class="btn" (click)="openCampaigns('sunrise')">Fix ad copy</button>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Clients">
+    <div class="card-head">
+      <h2>Clients</h2>
+      <label class="search">
+        <app-icon name="search" [size]="16" />
+        <span class="sr-only">Search clients</span>
+        <input type="search" placeholder="Search clients" [value]="query()" (input)="query.set($any($event.target).value)">
+      </label>
+    </div>
+    <div class="table-wrap">
+      <table class="data" style="min-width: 900px">
+        <thead>
+          <tr>
+            <th>Client</th><th>Modules</th><th class="r">Enquiries</th><th class="r">Cost / enquiry</th><th class="r">Enquiry → appt</th><th class="r">Rating</th><th>Health</th><th><span class="sr-only">Open</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (c of clients(); track c.id) {
+            <tr>
+              <td><div class="client-cell"><span class="mark">{{ c.initials }}</span><div><b>{{ c.name }}</b><small>{{ c.city }} · {{ c.branches.length }} {{ c.branches.length === 1 ? 'branch' : 'branches' }}</small></div></div></td>
+              <td class="modules">{{ modulesOf(c.modules) }}</td>
+              <td class="r num">{{ fmt(c.enquiries) }}</td>
+              <td class="r num">{{ inr(c.costPerEnquiry) }}</td>
+              <td class="r num">{{ c.enquiryToAppointment }}%</td>
+              <td class="r num">{{ c.rating }}</td>
+              <td>
+                @switch (c.health) {
+                  @case ('good') { <span class="pill green">● On track</span> }
+                  @case ('watch') { <span class="pill amber">▲ Watch</span> }
+                  @case ('risk') { <span class="pill red">! At risk</span> }
+                }
+              </td>
+              <td class="r"><button type="button" class="btn link" (click)="open(c.id)">Open →</button></td>
+            </tr>
+          } @empty {
+            <tr><td colspan="8" class="muted" style="text-align: center; padding: 28px">No clients match “{{ query() }}”.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="grid three">
+    <div class="card">
+      <div class="card-head"><h2>Integrations</h2></div>
+      <span class="muted" style="font-size: 13px">Connected accounts across all {{ clients().length }} clients</span>
+      @for (i of integrations; track i.name) {
+        <div class="integration">
+          <div><span style="font-weight: 600">{{ i.name }}</span><span class="num">{{ i.count }} / 8</span></div>
+          <div class="track"><i [style.width.%]="i.pct"></i></div>
+        </div>
+      }
+      <button type="button" class="btn">Manage connections</button>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Client reports</h2></div>
+      <span class="muted" style="font-size: 13px">Monthly reports go out on the 1st, branded with your agency logo</span>
+      <div>
+        <div class="report-row"><span>Sunrise Multispeciality</span><span class="pill green">Ready</span></div>
+        <div class="report-row"><span>Aarogya Heart Institute</span><span class="pill green">Ready</span></div>
+        <div class="report-row"><span>Lotus Women's &amp; IVF</span><span class="pill amber">Needs comment</span></div>
+        <div class="report-row"><span>5 more clients</span><span class="pill blue">Drafting</span></div>
+      </div>
+      <button type="button" class="btn dark">Preview reports</button>
+    </div>
+
+    <div class="card dark brand-card">
+      <div class="card-head"><h2>Your agency, your brand</h2></div>
+      <p>Clients log in at your own address and see your logo and colours. Switch modules on per client as they grow.</p>
+      <div class="chips"><span>Campaigns</span><span>SEO</span><span>Blog</span><span>Reputation</span><span class="new">Global patients</span></div>
+      <span class="num" style="font-size: 13px; color: #A9B8CF">clients.[youragency].com</span>
+    </div>
+  </section>
+</div>

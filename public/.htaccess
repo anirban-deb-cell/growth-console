@@ -1,0 +1,35 @@
+# Growth Console — web root rules (Apache / LiteSpeed on Hostinger).
+RewriteEngine On
+RewriteBase /
+Options -Indexes
+
+# HTTPS only. 308 (not 301) so a POST — sign-in, save, upload — stays a
+# POST after the redirect instead of turning into a GET ("Method not allowed").
+RewriteCond %{HTTPS} off
+RewriteCond %{HTTP:X-Forwarded-Proto} !https
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=308,L]
+
+# The PHP API and uploaded images are served as they are.
+RewriteRule ^(api|uploads)/ - [L]
+
+# Real files (JS, CSS, fonts, icons).
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# Everything else is a console screen — let Angular's router handle it.
+RewriteRule ^ index.html [L]
+
+<IfModule mod_headers.c>
+  # An admin tool must never appear in search results.
+  Header always set X-Robots-Tag "noindex, nofollow"
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "DENY"
+  Header always set Referrer-Policy "same-origin"
+  Header always set Strict-Transport-Security "max-age=31536000" env=HTTPS
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  <FilesMatch "\.(js|css)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>

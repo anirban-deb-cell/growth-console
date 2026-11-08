@@ -1,0 +1,2 @@
+# Command-line tools — run over SSH only, never over HTTP.
+Require all denied

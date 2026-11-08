@@ -1,0 +1,148 @@
+<div class="page">
+  <header class="page-head">
+    <div class="titles">
+      <div class="title-row">
+        <h1>Campaigns</h1>
+        <span class="sample-badge">Sample data</span>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px">
+        <span class="chip ok"><span class="dot"></span>Google Ads · synced 12 min ago</span>
+        <span class="chip ok"><span class="dot"></span>Meta Ads · synced 9 min ago</span>
+        <span class="chip">{{ clients.current().name }}</span>
+      </div>
+    </div>
+    <div class="actions">
+      <a routerLink="/campaigns/new" class="btn primary">+ New campaign</a>
+    </div>
+  </header>
+
+  <section class="grid kpis" aria-label="Totals for the campaigns shown">
+    <div class="kpi"><span class="label">Spend · 30 days</span><span class="value">{{ totals().spend }}</span><div class="foot">monthly budget {{ totals().budget }}</div></div>
+    <div class="kpi"><span class="label">Clicks</span><span class="value">{{ totals().clicks }}</span><div class="foot">CTR {{ totals().ctr }}</div></div>
+    <div class="kpi"><span class="label">Patient enquiries</span><span class="value">{{ totals().enquiries }}</span><div class="foot">calls, WhatsApp, forms</div></div>
+    <div class="kpi"><span class="label">Cost per enquiry</span><span class="value">{{ totals().cpl }}</span><div class="foot">target under ₹600</div></div>
+    <div class="kpi"><span class="label">Appointments</span><span class="value">{{ totals().appointments }}</span><div class="foot">{{ totals().conv }} of enquiries</div></div>
+  </section>
+
+  <section class="grid two">
+    <div class="card">
+      <div class="card-head"><h2>Daily enquiries from ads</h2><span class="sub">Campaigns shown below · last 30 days</span></div>
+      <adm-line-chart [points]="chart()" unit="enquiries" [height]="220" ariaLabel="Daily enquiries from ads" />
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Budget pacing</h2><span class="sub">Active campaigns · this month</span></div>
+      @for (b of pacing(); track b.name) {
+        <div class="pacing">
+          <div><span style="font-weight: 600">{{ b.name }}</span><span class="num">{{ b.text }}</span></div>
+          <div class="track lg"><i [style.width.%]="b.pct" [style.background]="b.warn ? 'var(--amber)' : 'var(--blue)'"></i></div>
+        </div>
+      } @empty {
+        <span class="muted" style="font-size: 13px">No active campaigns.</span>
+      }
+      <span class="muted" style="font-size: 12px">Amber bars will run out of budget before the month ends.</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="filters">
+      <div class="seg" role="group" aria-label="Platform">
+        <button type="button" [class.on]="platform() === 'all'" (click)="platform.set('all')">All platforms</button>
+        <button type="button" [class.on]="platform() === 'google'" (click)="platform.set('google')">Google Ads</button>
+        <button type="button" [class.on]="platform() === 'meta'" (click)="platform.set('meta')">Meta Ads</button>
+      </div>
+      <div class="right">
+        <label><span class="sr-only">Specialty</span>
+          <select [value]="specialty()" (change)="specialty.set($any($event.target).value)">
+            <option value="all">All specialties</option>
+            @for (s of specialties(); track s) { <option [value]="s">{{ s }}</option> }
+          </select>
+        </label>
+        <label><span class="sr-only">Search campaigns</span>
+          <input type="search" placeholder="Search campaigns" [value]="query()" (input)="query.set($any($event.target).value)">
+        </label>
+      </div>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="Status">
+      @for (t of statusTabs; track t) {
+        <button type="button" role="tab" [class.on]="status() === t" [attr.aria-selected]="status() === t" (click)="status.set(t)">
+          {{ t === 'all' ? 'All' : statusLabel[t] }}<span class="count">{{ statusCounts()[t] ?? 0 }}</span>
+        </button>
+      }
+    </div>
+
+    <div class="table-wrap">
+      <table class="data" style="min-width: 1040px">
+        <thead>
+          <tr><th>Campaign</th><th>Specialty</th><th>Status</th><th class="r">Daily budget</th><th class="r">Spend</th><th class="r">Clicks</th><th class="r">Enquiries</th><th class="r">Cost / enquiry</th><th>Compliance</th><th><span class="sr-only">Actions</span></th></tr>
+        </thead>
+        <tbody>
+          @for (c of rows(); track c.id) {
+            <tr>
+              <td>
+                <div class="camp">
+                  <span class="pf" [class]="c.platform">{{ c.platform === 'google' ? 'G' : 'M' }}</span>
+                  <div><b>{{ c.name }}</b><small>{{ c.platform === 'google' ? 'Google Ads' : 'Meta' }} · {{ c.type }} · {{ c.branch }}</small></div>
+                </div>
+              </td>
+              <td>{{ c.specialty }}</td>
+              <td><span class="pill" [class]="statusTone[c.status]">{{ statusLabel[c.status] }}</span></td>
+              <td class="r num">{{ inr(c.dailyBudget) }}</td>
+              <td class="r num">{{ c.spend ? inr(c.spend) : '—' }}</td>
+              <td class="r num">{{ c.clicks ? fmt(c.clicks) : '—' }}</td>
+              <td class="r num">{{ c.enquiries ? fmt(c.enquiries) : '—' }}</td>
+              <td class="r num">{{ cpl(c) }}</td>
+              <td>
+                @if (c.compliance === 'needs_fix') {
+                  <button type="button" class="pill red" style="border: 0; cursor: pointer" (click)="review(c)">Needs fix →</button>
+                } @else {
+                  <span class="pill" [class]="complianceTone[c.compliance]">{{ complianceLabel[c.compliance] }}</span>
+                }
+              </td>
+              <td class="r">
+                @if (c.status === 'active' || c.status === 'paused') {
+                  <button type="button" class="btn sm" (click)="toggle(c)">{{ c.status === 'active' ? 'Pause' : 'Resume' }}</button>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="10" class="muted" style="text-align: center; padding: 28px">No campaigns match these filters. <a routerLink="/campaigns/new">Create one →</a></td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  @if (fixing(); as c) {
+    <section class="card" id="compliance" aria-label="Compliance review">
+      <div class="card-head"><h2>AI compliance check · {{ c.name }}</h2><span class="sub">Healthcare advertising rules + Google &amp; Meta medical-ad policies</span></div>
+      @if (findings().length) {
+        <div class="grid two">
+          <div class="ad bad">
+            <span class="tag" style="color: var(--red-ink)">Current ad</span>
+            @for (h of c.headlines; track $index) {
+              <span class="headline">@for (p of highlight(h); track $index) {<span [class.flag]="p.flag">{{ p.t }}</span>}</span>
+            }
+            @for (d of c.descriptions; track $index) {
+              <span class="desc">@for (p of highlight(d); track $index) {<span [class.flag]="p.flag">{{ p.t }}</span>}</span>
+            }
+            <ul>
+              @for (f of findings(); track f.phrase) { <li>“{{ f.phrase }}” — {{ f.reason }}</li> }
+            </ul>
+          </div>
+          <div class="ad good">
+            <span class="tag" style="color: var(--green-ink)">Suggested rewrite</span>
+            @for (h of rewrite()?.headlines; track $index) { <span class="headline">{{ h }}</span> }
+            @for (d of rewrite()?.descriptions; track $index) { <span class="desc">{{ d }}</span> }
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px">
+              <button type="button" class="btn green" (click)="approveFix()">Approve &amp; update ad</button>
+              <button type="button" class="btn">Edit first</button>
+            </div>
+          </div>
+        </div>
+      } @else {
+        <span class="pill green" style="align-self: flex-start">✓ No issues found in this ad’s copy</span>
+      }
+    </section>
+  }
+</div>

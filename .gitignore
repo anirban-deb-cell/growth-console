@@ -40,3 +40,11 @@ testem.log
 # System files
 .DS_Store
 Thumbs.db
+
+# Growth Console API: real credentials and user uploads never go in git.
+/public/api/config.php
+/public/uploads/*
+!/public/uploads/.htaccess
+
+# Local-only notes (dev logins)
+/.local/

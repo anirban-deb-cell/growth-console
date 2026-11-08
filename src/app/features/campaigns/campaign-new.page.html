@@ -1,0 +1,243 @@
+<div class="page">
+  <header class="page-head">
+    <div class="titles">
+      <a routerLink="/campaigns" class="back-link">← All campaigns</a>
+      <div class="title-row"><h1>New campaign</h1><span class="sample-badge">Sample data</span></div>
+      <p>For {{ client().name }}. Nothing goes live until the client approves it and the ad platform reviews it.</p>
+    </div>
+  </header>
+
+  <ol class="stepper" aria-label="Steps">
+    @for (s of steps; track s; let i = $index) {
+      <li [class.done]="i < step()" [class.now]="i === step()">
+        <button type="button" (click)="goTo(i)" [disabled]="i >= step()" [attr.aria-current]="i === step() ? 'step' : null">
+          <span class="n">{{ i < step() ? '✓' : i + 1 }}</span>{{ s }}
+        </button>
+      </li>
+    }
+  </ol>
+
+  <div class="split">
+    <div class="main card">
+      @switch (step()) {
+        @case (0) {
+          <h2 class="step-title">What should this campaign do?</h2>
+          <div class="field">
+            <span class="label">Channel</span>
+            <div class="option-cards">
+              @for (c of channels; track c.id) {
+                <button type="button" class="option-card" [class.on]="channelId() === c.id" [attr.aria-pressed]="channelId() === c.id" (click)="pickChannel(c.id)"><b>{{ c.title }}</b><span>{{ c.detail }}</span></button>
+              }
+            </div>
+          </div>
+          <div class="field">
+            <span class="label">What counts as an enquiry</span>
+            <div class="option-cards four">
+              @for (o of objectives; track o.id) {
+                <button type="button" class="option-card" [class.on]="objective() === o.id" [attr.aria-pressed]="objective() === o.id" (click)="objective.set(o.id)"><b>{{ o.title }}</b><span>{{ o.detail }}</span></button>
+              }
+            </div>
+          </div>
+          <div class="row-2">
+            <div class="field">
+              <label for="specialty">Specialty</label>
+              <select id="specialty" [(ngModel)]="specialty" (ngModelChange)="suggestName()">
+                <option value="" disabled>Choose a specialty</option>
+                @for (s of specialties; track s) { <option [value]="s">{{ s }}</option> }
+              </select>
+            </div>
+            <div class="field">
+              <label for="branch">Branch</label>
+              <select id="branch" [(ngModel)]="branch">
+                <option value="All branches">All branches</option>
+                @for (b of client().branches; track b) { <option [value]="b">{{ b }}</option> }
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="name">Campaign name</label>
+            <input id="name" type="text" placeholder="e.g. Knee replacement · Search" [(ngModel)]="name">
+            <span class="hint">Shown in reports. Use specialty + channel so clients can scan the list.</span>
+          </div>
+        }
+
+        @case (1) {
+          <h2 class="step-title">Who should see it?</h2>
+          <div class="field">
+            <span class="label">Where</span>
+            <div class="seg">
+              <button type="button" [class.on]="locationMode() === 'radius'" (click)="pickLocationMode('radius')">Around the branch</button>
+              <button type="button" [class.on]="locationMode() === 'cities'" (click)="pickLocationMode('cities')">Cities</button>
+              <button type="button" [class.on]="locationMode() === 'countries'" (click)="pickLocationMode('countries')">Other countries</button>
+            </div>
+          </div>
+          @switch (locationMode()) {
+            @case ('radius') {
+              <div class="field">
+                <label for="radius">Radius around {{ branch === 'All branches' ? 'each branch' : branch }}: <b class="num">{{ radiusKm }} km</b></label>
+                <input id="radius" type="range" min="3" max="50" step="1" [(ngModel)]="radiusKm" style="padding: 0; min-height: 32px">
+              </div>
+            }
+            @case ('cities') {
+              <div class="field">
+                <label for="cities">Cities <span class="optional">(comma separated)</span></label>
+                <input id="cities" type="text" [(ngModel)]="cities">
+              </div>
+            }
+            @case ('countries') {
+              <div class="field">
+                <span class="label">Countries for medical travel</span>
+                <div class="toggles">
+                  @for (c of countries; track c) {
+                    <button type="button" [class.on]="selectedCountries().includes(c)" [attr.aria-pressed]="selectedCountries().includes(c)" (click)="toggleIn(selectedCountries, c)">{{ c }}</button>
+                  }
+                </div>
+                <span class="hint">Enquiries go to the Global patients pipeline with the patient's time zone.</span>
+              </div>
+            }
+          }
+          <div class="field">
+            <span class="label">Ad languages</span>
+            <div class="toggles">
+              @for (l of languages; track l) {
+                <button type="button" [class.on]="selectedLanguages().includes(l)" [attr.aria-pressed]="selectedLanguages().includes(l)" (click)="toggleIn(selectedLanguages, l)">{{ l }}</button>
+              }
+            </div>
+          </div>
+          @if (isMeta()) {
+            <div class="row-2">
+              <div class="field"><label for="amin">Minimum age</label><input id="amin" type="number" min="18" max="65" [(ngModel)]="ageMin"></div>
+              <div class="field"><label for="amax">Maximum age</label><input id="amax" type="number" min="18" max="65" [(ngModel)]="ageMax"></div>
+            </div>
+            <div class="note">Meta doesn't allow targeting people by health conditions, so audiences use location, age and language only.</div>
+          }
+          @if (isGoogleSearch()) {
+            <div class="field">
+              <label for="kw">Search keywords <span class="optional">(one per line)</span></label>
+              <textarea id="kw" rows="5" placeholder="knee replacement cost hyderabad&#10;knee replacement surgeon near me" [(ngModel)]="keywords"></textarea>
+            </div>
+          }
+        }
+
+        @case (2) {
+          <h2 class="step-title">How much, and when?</h2>
+          <div class="field">
+            <label for="budget">Daily budget (₹)</label>
+            <input id="budget" type="number" min="200" step="100" [(ngModel)]="dailyBudget">
+            <div class="toggles" style="margin-top: 4px">
+              @for (b of budgetPresets; track b) {
+                <button type="button" [class.on]="dailyBudget === b" (click)="dailyBudget = b">{{ inr(b) }} / day</button>
+              }
+            </div>
+          </div>
+          <div class="row-2">
+            <div class="field"><label for="start">Start date</label><input id="start" type="date" [(ngModel)]="startDate"></div>
+            <div class="field"><label for="end">End date <span class="optional">(optional)</span></label><input id="end" type="date" [(ngModel)]="endDate"></div>
+          </div>
+          <div class="field">
+            <span class="label">When ads run</span>
+            <div class="option-cards">
+              <button type="button" class="option-card" [class.on]="schedule() === 'desk'" (click)="schedule.set('desk')"><b>Only when the front desk is open</b><span>8 am – 9 pm. No calls go unanswered at night.</span></button>
+              <button type="button" class="option-card" [class.on]="schedule() === 'always'" (click)="schedule.set('always')"><b>All day, every day</b><span>Night enquiries get a WhatsApp auto-reply.</span></button>
+            </div>
+          </div>
+        }
+
+        @case (3) {
+          <h2 class="step-title">Write the ad</h2>
+          @for (h of headlines; track $index; let i = $index) {
+            <div class="field">
+              <label [for]="'h' + i">Headline {{ i + 1 }} @if (i > 0) {<span class="optional">(optional)</span>}</label>
+              <input [id]="'h' + i" type="text" [maxlength]="headlineLimit" [(ngModel)]="headlines[i]" [placeholder]="i === 0 ? 'Knee Replacement in Hyderabad' : ''">
+              <span class="hint" [class.warn]="headlines[i].length > headlineLimit - 3">{{ headlines[i].length }} / {{ headlineLimit }}</span>
+            </div>
+          }
+          <div class="field">
+            <label for="desc">Description</label>
+            <textarea id="desc" rows="3" [maxlength]="descriptionLimit" placeholder="Experienced orthopedic surgeons and in-house physiotherapy. Book a consultation." [(ngModel)]="description"></textarea>
+            <span class="hint" [class.warn]="description.length > descriptionLimit - 5">{{ description.length }} / {{ descriptionLimit }}</span>
+          </div>
+          <div class="field">
+            <label for="lp">Landing page</label>
+            <select id="lp" [(ngModel)]="landingUrl">
+              <option value="" disabled>Choose a page on {{ client().website }}</option>
+              @for (o of landingOptions(); track o.url) { <option [value]="o.url">{{ o.label }}</option> }
+            </select>
+          </div>
+        }
+
+        @case (4) {
+          <h2 class="step-title">Tracking &amp; review</h2>
+          <label class="check"><input type="checkbox" [(ngModel)]="trackingNumber"><span><b>Use a tracking phone number</b>Calls from this campaign are counted and recorded as enquiries.</span></label>
+          <label class="check"><input type="checkbox" [(ngModel)]="whatsappNumber"><span><b>Route WhatsApp chats to the front desk</b>With an instant auto-reply showing branch timings.</span></label>
+          <div class="field" style="margin-top: 6px">
+            <label for="conv">Google Ads conversion ID <span class="optional">(optional)</span></label>
+            <input id="conv" type="text" placeholder="AW-18387395398/label" [(ngModel)]="conversionId">
+          </div>
+          <div class="field">
+            <span class="label">Tracking added to the landing page link</span>
+            <code class="code">{{ landingUrl }}{{ utm }}</code>
+          </div>
+          <dl class="review">
+            <div><dt>Channel</dt><dd>{{ channel().title }}</dd></div>
+            <div><dt>Specialty · branch</dt><dd>{{ specialty }} · {{ branch }}</dd></div>
+            <div><dt>Audience</dt><dd>{{ locationSummary }} · {{ selectedLanguages().join(', ') }}</dd></div>
+            <div><dt>Budget</dt><dd>{{ inr(dailyBudget) }} / day · from {{ startDate }}{{ endDate ? ' to ' + endDate : '' }}</dd></div>
+            <div><dt>Schedule</dt><dd>{{ schedule() === 'desk' ? 'Front-desk hours only' : 'All day' }}</dd></div>
+          </dl>
+        }
+      }
+
+      <div class="nav">
+        @if (step() > 0) { <button type="button" class="btn" (click)="back()">← Back</button> } @else { <a routerLink="/campaigns" class="btn">Cancel</a> }
+        <span class="grow"></span>
+        @if (step() < steps.length - 1) {
+          <button type="button" class="btn primary" [disabled]="!stepValid" (click)="next()">Continue →</button>
+        } @else {
+          <button type="button" class="btn" (click)="save(false)">Save as draft</button>
+          <button type="button" class="btn primary" (click)="save(true)">Send for client approval</button>
+        }
+      </div>
+    </div>
+
+    <aside class="side summary">
+      <div class="card">
+        <span class="eyebrow">Estimate</span>
+        <div class="est"><span class="num">{{ estimate.low }}–{{ estimate.high }}</span><small>patient enquiries / month</small></div>
+        <span class="muted" style="font-size: 12px">{{ estimate.monthly }} a month at about {{ estimate.cpl }} per enquiry — sample benchmark for {{ specialty || 'this specialty' }}.</span>
+      </div>
+
+      <div class="card">
+        <span class="eyebrow">Ad preview</span>
+        @if (isMeta()) {
+          <div class="meta-ad">
+            <div class="who"><span class="logo">{{ client().initials }}</span><div><b>{{ client().name }}</b><small>Sponsored</small></div></div>
+            <p>{{ description || 'Your description appears here.' }}</p>
+            <div class="media">{{ channel().type }}</div>
+            <div class="cta"><span>{{ headlines[0] || 'Your headline' }}</span><b>{{ objective() === 'whatsapp' ? 'Send message' : objective() === 'calls' ? 'Call now' : 'Book now' }}</b></div>
+          </div>
+        } @else {
+          <div class="g-ad">
+            <small><b>Sponsored</b> · {{ client().website }}</small>
+            <span class="t">{{ googleTitle }}</span>
+            <span class="d">{{ description || 'Your description appears here.' }}</span>
+          </div>
+        }
+      </div>
+
+      <div class="card">
+        <span class="eyebrow">Compliance check</span>
+        @if (!adText) {
+          <span class="muted" style="font-size: 13px">Checks run as you write the ad copy.</span>
+        } @else if (findings.length) {
+          <ul class="findings">
+            @for (f of findings; track f.phrase) { <li><b>“{{ f.phrase }}”</b>{{ f.reason }}</li> }
+          </ul>
+          <button type="button" class="btn green" (click)="applyRewrite()">Apply suggested wording</button>
+        } @else {
+          <span class="pill green" style="align-self: flex-start">✓ No risky claims found</span>
+        }
+      </div>
+    </aside>
+  </div>
+</div>
