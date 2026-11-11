@@ -8,86 +8,11 @@
  */
 
 declare(strict_types=1);
+require_once __DIR__ . '/input.php';
 
 const BLOG_STATUSES = ['draft', 'in_review', 'scheduled', 'published'];
 /** Statuses an editor (not admin) may save — publishing needs an admin. */
 const BLOG_EDITOR_STATUSES = ['draft', 'in_review'];
-
-function blog_site(): string
-{
-    return (string) cfg('site_key', 'medgrowth');
-}
-
-function blog_str(array $in, string $key, int $max, bool $required = false, string $label = ''): ?string
-{
-    $value = isset($in[$key]) ? trim((string) $in[$key]) : '';
-    if ($value === '') {
-        if ($required) {
-            fail(($label ?: $key) . ' is required.', 422, ['field' => $key]);
-        }
-        return null;
-    }
-    if (mb_strlen($value) > $max) {
-        fail(($label ?: $key) . " is too long (max $max characters).", 422, ['field' => $key]);
-    }
-    return $value;
-}
-
-/** A list of non-empty strings, each trimmed and length-capped. */
-function blog_str_list(mixed $value, int $maxItems, int $maxLen, string $label): array
-{
-    if ($value === null) {
-        return [];
-    }
-    if (!is_array($value)) {
-        fail("$label must be a list.", 422);
-    }
-    $out = [];
-    foreach ($value as $item) {
-        $item = trim((string) $item);
-        if ($item === '') {
-            continue;
-        }
-        if (mb_strlen($item) > $maxLen) {
-            fail("An item in $label is too long (max $maxLen characters).", 422);
-        }
-        $out[] = $item;
-    }
-    if (count($out) > $maxItems) {
-        fail("$label can have at most $maxItems items.", 422);
-    }
-    return $out;
-}
-
-function blog_youtube(?string $id): ?string
-{
-    if ($id === null || $id === '') {
-        return null;
-    }
-    if (!preg_match('/^[A-Za-z0-9_-]{11}$/', $id)) {
-        fail('That YouTube video ID doesn’t look right.', 422);
-    }
-    return $id;
-}
-
-/** Image references must be http(s) URLs or site-relative paths — never javascript:, data: etc. */
-function blog_image(?string $url): ?string
-{
-    if ($url === null || $url === '') {
-        return null;
-    }
-    if (mb_strlen($url) > 500 || !preg_match('#^(https?://[^\s"<>]+|/[^\s"<>]*)$#i', $url)) {
-        fail('An image link is not a valid URL or path.', 422);
-    }
-    return $url;
-}
-
-function blog_slugify(string $value): string
-{
-    $slug = strtolower(trim($value));
-    $slug = preg_replace('/[^a-z0-9]+/', '-', $slug) ?? '';
-    return trim($slug, '-');
-}
 
 /**
  * Validates and normalises a save request from the editor.
@@ -95,7 +20,7 @@ function blog_slugify(string $value): string
  */
 function blog_validate(array $in, array $user): array
 {
-    $slug = blog_str($in, 'slug', 160, true, 'URL slug');
+    $slug = input_str($in, 'slug', 160, true, 'URL slug');
     if (!preg_match('/^[a-z0-9]+(-[a-z0-9]+)*$/', $slug)) {
         fail('The URL slug may only use lowercase letters, numbers and hyphens.', 422, ['field' => 'slug']);
     }
@@ -118,14 +43,14 @@ function blog_validate(array $in, array $user): array
         $status = 'scheduled';
     }
 
-    $conversion = blog_str($in, 'conversionId', 120);
+    $conversion = input_str($in, 'conversionId', 120);
     if ($conversion !== null && !preg_match('#^AW-\d+/[A-Za-z0-9_-]+$#', $conversion)) {
         fail('Google Ads conversion ID should look like AW-123456789/label.', 422, ['field' => 'conversionId']);
     }
 
     $images = [];
-    foreach (blog_str_list($in['images'] ?? [], 20, 500, 'Photos') as $img) {
-        $images[] = blog_image($img);
+    foreach (input_list($in['images'] ?? [], 20, 500, 'Photos') as $img) {
+        $images[] = input_image($img);
     }
 
     $sections = [];
@@ -138,11 +63,11 @@ function blog_validate(array $in, array $user): array
         if (!is_array($s)) {
             fail('Each sub topic must be an object.', 422);
         }
-        $heading = blog_str($s, 'heading', 255);
+        $heading = input_str($s, 'heading', 255);
         if ($heading === null) {
             continue; // the editor allows empty sub topic cards; they're not saved
         }
-        $key = blog_slugify((string) ($s['id'] ?? '')) ?: blog_slugify($heading) ?: 'section-' . ($i + 1);
+        $key = slugify((string) ($s['id'] ?? '')) ?: slugify($heading) ?: 'section-' . ($i + 1);
         // Anchor ids must be unique within a post or the table of contents breaks.
         $base = $key;
         for ($n = 2; isset($usedKeys[$key]); $n++) {
@@ -152,24 +77,24 @@ function blog_validate(array $in, array $user): array
         $sections[] = [
             'section_key' => mb_substr($key, 0, 160),
             'heading' => $heading,
-            'paragraphs' => blog_str_list($s['paragraphs'] ?? [], 100, 20000, 'Sub topic text'),
-            'image' => blog_image(isset($s['image']) ? trim((string) $s['image']) : null),
-            'youtube_id' => blog_youtube(isset($s['youtubeId']) ? trim((string) $s['youtubeId']) : null),
+            'paragraphs' => input_list($s['paragraphs'] ?? [], 100, 20000, 'Sub topic text'),
+            'image' => input_image(isset($s['image']) ? trim((string) $s['image']) : null),
+            'youtube_id' => input_youtube(isset($s['youtubeId']) ? trim((string) $s['youtubeId']) : null),
         ];
     }
 
     return [
         'post' => [
             'slug' => $slug,
-            'title' => blog_str($in, 'title', 255, true, 'Title'),
-            'category' => blog_str($in, 'category', 120, true, 'Category'),
-            'excerpt' => blog_str($in, 'excerpt', 1000, true, 'Description'),
-            'intro' => blog_str_list($in['intro'] ?? [], 50, 20000, 'Intro'),
-            'tags' => array_values(array_unique(blog_str_list($in['tags'] ?? [], 30, 60, 'Tags'))),
+            'title' => input_str($in, 'title', 255, true, 'Title'),
+            'category' => input_str($in, 'category', 120, true, 'Category'),
+            'excerpt' => input_str($in, 'excerpt', 1000, true, 'Description'),
+            'intro' => input_list($in['intro'] ?? [], 50, 20000, 'Intro'),
+            'tags' => array_values(array_unique(input_list($in['tags'] ?? [], 30, 60, 'Tags'))),
             'images' => $images,
-            'youtube_id' => blog_youtube(isset($in['youtubeId']) ? trim((string) $in['youtubeId']) : null),
+            'youtube_id' => input_youtube(isset($in['youtubeId']) ? trim((string) $in['youtubeId']) : null),
             'conversion_id' => $conversion,
-            'author' => blog_str($in, 'author', 160),
+            'author' => input_str($in, 'author', 160),
             'status' => $status,
             'published_at' => $publishedAt,
             'read_mins' => max(1, min(600, (int) ($in['readMins'] ?? 1))),
@@ -189,12 +114,6 @@ function blog_effective_status(array $row): string
     return $row['status'];
 }
 
-function blog_json(?string $value): array
-{
-    $decoded = json_decode($value ?? '[]', true);
-    return is_array($decoded) ? $decoded : [];
-}
-
 /** Summary used by the console's "All posts" table. */
 function blog_admin_summary(array $row, bool $sectionVideo = false): array
 {
@@ -204,7 +123,7 @@ function blog_admin_summary(array $row, bool $sectionVideo = false): array
         'title' => $row['title'],
         'category' => $row['category'],
         'excerpt' => $row['excerpt'],
-        'tags' => blog_json($row['tags']),
+        'tags' => json_list($row['tags']),
         'status' => blog_effective_status($row),
         'date' => $row['published_at'],
         'author' => $row['author'] ?? '',
@@ -231,14 +150,14 @@ function blog_admin_full(array $row): array
     $sections = blog_load_sections((int) $row['id']);
     $hasSectionVideo = (bool) array_filter($sections, fn ($s) => !empty($s['youtube_id']));
     return blog_admin_summary($row, $hasSectionVideo) + [
-        'intro' => blog_json($row['intro']),
-        'images' => blog_json($row['images']),
+        'intro' => json_list($row['intro']),
+        'images' => json_list($row['images']),
         'youtubeId' => $row['youtube_id'] ?: null,
         'readMins' => (int) $row['read_mins'],
         'sections' => array_map(fn ($s) => [
             'id' => $s['section_key'],
             'heading' => $s['heading'],
-            'paragraphs' => blog_json($s['paragraphs']),
+            'paragraphs' => json_list($s['paragraphs']),
             'image' => $s['image'] ?: null,
             'youtubeId' => $s['youtube_id'] ?: null,
         ], $sections),
@@ -248,14 +167,14 @@ function blog_admin_full(array $row): array
 /** The website's BlogPost shape (see blog-posts.data.ts), plus `images`. */
 function blog_public(array $row, bool $withSections = true): array
 {
-    $images = blog_json($row['images']);
+    $images = json_list($row['images']);
     $post = [
         'slug' => $row['slug'],
         'title' => $row['title'],
         'category' => $row['category'],
         'excerpt' => $row['excerpt'],
-        'intro' => blog_json($row['intro']),
-        'tags' => blog_json($row['tags']),
+        'intro' => json_list($row['intro']),
+        'tags' => json_list($row['tags']),
         'photoCount' => count($images),
         'images' => $images,
         'publishedAt' => $row['published_at'],
@@ -274,7 +193,7 @@ function blog_public(array $row, bool $withSections = true): array
     }
     if ($withSections) {
         $post['sections'] = array_map(function (array $s): array {
-            $section = ['id' => $s['section_key'], 'heading' => $s['heading'], 'paragraphs' => blog_json($s['paragraphs'])];
+            $section = ['id' => $s['section_key'], 'heading' => $s['heading'], 'paragraphs' => json_list($s['paragraphs'])];
             if (!empty($s['image'])) {
                 $section['image'] = $s['image'];
                 $section['photoCount'] = 1;

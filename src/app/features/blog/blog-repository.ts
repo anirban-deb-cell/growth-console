@@ -42,6 +42,9 @@ interface ApiPost {
   youtubeId?: string | null;
   readMins?: number;
   sections?: BlogPost['sections'];
+  visitCount?: number;
+  leadCount?: number;
+  newLeadCount?: number;
 }
 
 @Injectable()
@@ -77,7 +80,10 @@ export class HttpBlogRepository extends BlogRepository {
       sections: p.sections,
       images: p.images,
       readMins: p.readMins,
-      url: p.url
+      url: p.url,
+      visitCount: p.visitCount,
+      leadCount: p.leadCount,
+      newLeadCount: p.newLeadCount
     };
   }
 

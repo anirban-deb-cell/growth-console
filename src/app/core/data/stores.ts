@@ -74,6 +74,16 @@ export class CampaignStore {
     save('campaigns', this.all());
   }
 
+  /** Adds a new campaign (no id) or replaces an existing one; returns the stored copy. */
+  upsert(campaign: Omit<Campaign, 'id' | 'createdAt'> & { id?: string }): Campaign {
+    const existing = campaign.id ? this.get(campaign.id) : undefined;
+    if (!existing) return this.add(campaign);
+    const updated: Campaign = { ...existing, ...campaign, id: existing.id, createdAt: existing.createdAt };
+    this.all.update((list) => list.map((c) => (c.id === existing.id ? updated : c)));
+    save('campaigns', this.all());
+    return updated;
+  }
+
   remove(id: string): void {
     this.all.update((list) => list.filter((c) => c.id !== id));
     save('campaigns', this.all());

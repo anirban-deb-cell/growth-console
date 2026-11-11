@@ -1,4 +1,4 @@
-import { BlogPost, Campaign, Client } from './models';
+import { BlogPost, Campaign, Client, Lead } from './models';
 
 /**
  * SAMPLE DATA ONLY — fictional hospitals and figures used to present the
@@ -6,7 +6,7 @@ import { BlogPost, Campaign, Client } from './models';
  */
 
 export const CLIENTS: Client[] = [
-  { id: 'medgrowth', name: 'MedGrowth Digital', initials: 'MG', city: 'Hyderabad', branches: ['Hyderabad'], modules: ['overview', 'campaigns', 'seo', 'blog', 'reputation', 'global'], enquiries: 136, costPerEnquiry: 0, enquiryToAppointment: 0, rating: 4.9, health: 'good', website: 'medgrowth.co.in' },
+  { id: 'medgrowth', name: 'MedGrowth Digital', initials: 'MG', city: 'Hyderabad', branches: ['Hyderabad'], modules: ['overview', 'campaigns', 'enquiries', 'seo', 'blog', 'reputation', 'global'], enquiries: 136, costPerEnquiry: 0, enquiryToAppointment: 0, rating: 4.9, health: 'good', website: 'medgrowth.co.in', kind: 'agency', searchConsoleProperty: 'sc-domain:medgrowth.co.in' },
   { id: 'sunrise', name: 'Sunrise Multispeciality Hospital', initials: 'SM', city: 'Hyderabad', branches: ['Banjara Hills', 'Kondapur', 'LB Nagar'], modules: ['overview', 'campaigns', 'seo', 'blog', 'reputation', 'global'], enquiries: 1284, costPerEnquiry: 412, enquiryToAppointment: 37.9, rating: 4.6, health: 'good', website: 'sunrisehospital.in' },
   { id: 'aarogya', name: 'Aarogya Heart Institute', initials: 'AH', city: 'Bengaluru', branches: ['Jayanagar', 'Whitefield'], modules: ['overview', 'campaigns', 'reputation'], enquiries: 842, costPerEnquiry: 598, enquiryToAppointment: 29.4, rating: 4.4, health: 'risk', website: 'aarogyaheart.in' },
   { id: 'lotus', name: "Lotus Women's & IVF Centre", initials: 'LW', city: 'Hyderabad', branches: ['Madhapur'], modules: ['overview', 'campaigns', 'seo', 'blog', 'global'], enquiries: 611, costPerEnquiry: 702, enquiryToAppointment: 24.1, rating: 4.7, health: 'watch', website: 'lotusivf.in' },
@@ -95,3 +95,12 @@ POSTS.push(
   mg({ id: 'mg-6', slug: 'negative-review-responses', title: 'Responding to Negative Reviews Without Breaking Privacy', category: 'Reputation', status: 'draft', date: '2026-11-12', seoScore: 71, wordCount: 640, hasConversion: false, tags: ['Reviews', 'Privacy'], excerpt: 'How to answer an angry review without confirming someone was a patient.' }),
   mg({ id: 'mg-7', slug: 'whatsapp-follow-up-scripts', title: 'WhatsApp Follow-up Scripts for Front Desks', category: 'Patient Acquisition', status: 'draft', date: '2026-11-15', seoScore: 58, wordCount: 420, hasSchema: false, hasConversion: false, tags: ['WhatsApp'], excerpt: 'Ready-to-use WhatsApp replies for the first five minutes after an enquiry.' })
 );
+
+/** Sample enquiries for the agency's own campaigns (sample-data mode only). */
+export const LEADS: Lead[] = [
+  { id: 'lead-1', source: 'campaign', campaignId: null, campaignName: 'Free growth audit · Google Search', channel: 'form', name: 'Dr. Ramesh Rao', organisation: 'Rao Ortho Clinic', phone: '+91 98480 11223', email: 'ramesh@raoortho.in', city: 'Hyderabad', message: 'Need help with Google reviews and local SEO for 2 branches.', utmSource: 'google', utmMedium: 'cpc', utmCampaign: 'free-growth-audit', pageUrl: 'https://medgrowth.co.in/campaigns/free-growth-audit', status: 'new', notes: '', createdAt: '2026-11-08 10:42:00', updatedAt: '2026-11-08 10:42:00' },
+  { id: 'lead-2', source: 'campaign', campaignId: null, campaignName: 'Free growth audit · Google Search', channel: 'form', name: 'Priya Menon', organisation: 'Sunshine Dental Care', phone: '+91 99001 44556', email: null, city: 'Bengaluru', message: null, utmSource: 'google', utmMedium: 'cpc', utmCampaign: 'free-growth-audit', pageUrl: 'https://medgrowth.co.in/campaigns/free-growth-audit', status: 'contacted', notes: 'Called 7 Nov — send proposal for Google Ads.', createdAt: '2026-11-07 16:05:00', updatedAt: '2026-11-07 18:30:00' },
+  { id: 'lead-3', source: 'campaign', campaignId: null, campaignName: 'Hospital websites · Meta lead form', channel: 'whatsapp', name: null, organisation: null, phone: null, email: null, city: null, message: null, utmSource: 'meta', utmMedium: 'cpc', utmCampaign: 'hospital-websites', pageUrl: 'https://medgrowth.co.in/campaigns/hospital-websites', status: 'new', notes: '', createdAt: '2026-11-07 12:10:00', updatedAt: '2026-11-07 12:10:00' },
+  { id: 'lead-4', source: 'campaign', campaignId: null, campaignName: 'Hospital websites · Meta lead form', channel: 'form', name: 'Anil Kumar', organisation: 'Kumar Multispeciality Hospital', phone: '+91 90000 77889', email: 'admin@kumarhospital.in', city: 'Warangal', message: 'Looking for a new website and Google Ads.', utmSource: 'meta', utmMedium: 'cpc', utmCampaign: 'hospital-websites', pageUrl: 'https://medgrowth.co.in/campaigns/hospital-websites', status: 'won', notes: 'Signed 6-month package.', createdAt: '2026-11-02 09:15:00', updatedAt: '2026-11-05 11:00:00' },
+  { id: 'lead-5', source: 'contact', campaignId: null, campaignName: null, channel: 'form', name: 'Dr. Kavitha Reddy', organisation: 'Reddy Eye Care', role: 'Owner/Director', service: 'Local SEO & Google Profile Optimization', phone: '+91 98660 33445', email: 'kavitha@reddyeyecare.in', city: 'Hyderabad', message: 'We have 3 branches and few reviews.', utmSource: 'google', utmMedium: 'organic', utmCampaign: null, pageUrl: 'https://medgrowth.co.in/contact', status: 'new', notes: '', createdAt: '2026-11-08 18:20:00', updatedAt: '2026-11-08 18:20:00' }
+];

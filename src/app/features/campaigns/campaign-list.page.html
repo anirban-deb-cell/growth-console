@@ -3,11 +3,15 @@
     <div class="titles">
       <div class="title-row">
         <h1>Campaigns</h1>
-        <span class="sample-badge">Sample data</span>
+        @if (isMock) { <span class="sample-badge">Sample data</span> }
       </div>
       <div style="display: flex; flex-wrap: wrap; gap: 8px">
-        <span class="chip ok"><span class="dot"></span>Google Ads · synced 12 min ago</span>
-        <span class="chip ok"><span class="dot"></span>Meta Ads · synced 9 min ago</span>
+        @if (isMock) {
+          <span class="chip ok"><span class="dot"></span>Google Ads · synced 12 min ago</span>
+          <span class="chip ok"><span class="dot"></span>Meta Ads · synced 9 min ago</span>
+        } @else {
+          <span class="chip"><span class="dot"></span>Spend and clicks appear once Google Ads and Meta Ads are connected</span>
+        }
         <span class="chip">{{ clients.current().name }}</span>
       </div>
     </div>
@@ -16,32 +20,45 @@
     </div>
   </header>
 
-  <section class="grid kpis" aria-label="Totals for the campaigns shown">
-    <div class="kpi"><span class="label">Spend · 30 days</span><span class="value">{{ totals().spend }}</span><div class="foot">monthly budget {{ totals().budget }}</div></div>
-    <div class="kpi"><span class="label">Clicks</span><span class="value">{{ totals().clicks }}</span><div class="foot">CTR {{ totals().ctr }}</div></div>
-    <div class="kpi"><span class="label">Patient enquiries</span><span class="value">{{ totals().enquiries }}</span><div class="foot">calls, WhatsApp, forms</div></div>
-    <div class="kpi"><span class="label">Cost per enquiry</span><span class="value">{{ totals().cpl }}</span><div class="foot">target under ₹600</div></div>
-    <div class="kpi"><span class="label">Appointments</span><span class="value">{{ totals().appointments }}</span><div class="foot">{{ totals().conv }} of enquiries</div></div>
-  </section>
+  @if (isMock) {
+    <section class="grid kpis" aria-label="Totals for the campaigns shown">
+      <div class="kpi"><span class="label">Spend · 30 days</span><span class="value">{{ totals().spend }}</span><div class="foot">monthly budget {{ totals().budget }}</div></div>
+      <div class="kpi"><span class="label">Clicks</span><span class="value">{{ totals().clicks }}</span><div class="foot">CTR {{ totals().ctr }}</div></div>
+      <div class="kpi"><span class="label">Patient enquiries</span><span class="value">{{ totals().enquiries }}</span><div class="foot">calls, WhatsApp, forms</div></div>
+      <div class="kpi"><span class="label">Cost per enquiry</span><span class="value">{{ totals().cpl }}</span><div class="foot">target under ₹600</div></div>
+      <div class="kpi"><span class="label">Appointments</span><span class="value">{{ totals().appointments }}</span><div class="foot">{{ totals().conv }} of enquiries</div></div>
+    </section>
 
-  <section class="grid two">
-    <div class="card">
-      <div class="card-head"><h2>Daily enquiries from ads</h2><span class="sub">Campaigns shown below · last 30 days</span></div>
-      <adm-line-chart [points]="chart()" unit="enquiries" [height]="220" ariaLabel="Daily enquiries from ads" />
-    </div>
-    <div class="card">
-      <div class="card-head"><h2>Budget pacing</h2><span class="sub">Active campaigns · this month</span></div>
-      @for (b of pacing(); track b.name) {
-        <div class="pacing">
-          <div><span style="font-weight: 600">{{ b.name }}</span><span class="num">{{ b.text }}</span></div>
-          <div class="track lg"><i [style.width.%]="b.pct" [style.background]="b.warn ? 'var(--amber)' : 'var(--blue)'"></i></div>
-        </div>
-      } @empty {
-        <span class="muted" style="font-size: 13px">No active campaigns.</span>
-      }
-      <span class="muted" style="font-size: 12px">Amber bars will run out of budget before the month ends.</span>
-    </div>
-  </section>
+    <section class="grid two">
+      <div class="card">
+        <div class="card-head"><h2>Daily enquiries from ads</h2><span class="sub">Campaigns shown below · last 30 days</span></div>
+        <adm-line-chart [points]="chart()" unit="enquiries" [height]="220" ariaLabel="Daily enquiries from ads" />
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Budget pacing</h2><span class="sub">Active campaigns · this month</span></div>
+        @for (b of pacing(); track b.name) {
+          <div class="pacing">
+            <div><span style="font-weight: 600">{{ b.name }}</span><span class="num">{{ b.text }}</span></div>
+            <div class="track lg"><i [style.width.%]="b.pct" [style.background]="b.warn ? 'var(--amber)' : 'var(--blue)'"></i></div>
+          </div>
+        } @empty {
+          <span class="muted" style="font-size: 13px">No active campaigns.</span>
+        }
+        <span class="muted" style="font-size: 12px">Amber bars will run out of budget before the month ends.</span>
+      </div>
+    </section>
+  } @else {
+    <section class="grid kpis" aria-label="Campaign pipeline">
+      <div class="kpi"><span class="label">Live</span><span class="value">{{ pipeline().active }}</span><div class="foot">{{ pipeline().dailyLive }} / day in total</div></div>
+      <div class="kpi"><span class="label">Waiting for approval</span><span class="value">{{ pipeline().review }}</span><div class="foot">sent to the client</div></div>
+      <div class="kpi"><span class="label">Paused · drafts</span><span class="value">{{ pipeline().paused }} · {{ pipeline().draft }}</span><div class="foot">can be resumed · not sent yet</div></div>
+      <a class="kpi" routerLink="/enquiries" style="text-decoration: none; color: inherit"><span class="label">Enquiries</span><span class="value">{{ pipeline().leads }}</span><div class="foot">{{ pipeline().newLeads ? pipeline().newLeads + ' new — open the inbox →' : 'from landing page forms' }}</div></a>
+    </section>
+  }
+
+  @if (error()) {
+    <div class="alert danger" role="alert"><div class="body"><strong>Couldn’t load campaigns</strong><span>{{ error() }}</span></div><button type="button" class="btn" (click)="load()">Try again</button></div>
+  }
 
   <section class="card">
     <div class="filters">
@@ -53,7 +70,7 @@
       <div class="right">
         <label><span class="sr-only">Specialty</span>
           <select [value]="specialty()" (change)="specialty.set($any($event.target).value)">
-            <option value="all">All specialties</option>
+            <option value="all">All {{ audience().offeringPlural }}</option>
             @for (s of specialties(); track s) { <option [value]="s">{{ s }}</option> }
           </select>
         </label>
@@ -74,7 +91,7 @@
     <div class="table-wrap">
       <table class="data" style="min-width: 1040px">
         <thead>
-          <tr><th>Campaign</th><th>Specialty</th><th>Status</th><th class="r">Daily budget</th><th class="r">Spend</th><th class="r">Clicks</th><th class="r">Enquiries</th><th class="r">Cost / enquiry</th><th>Compliance</th><th><span class="sr-only">Actions</span></th></tr>
+          <tr><th>Campaign</th><th>{{ audience().offeringLabel }}</th><th>Status</th><th class="r">Daily budget</th>@if (isMock) {<th class="r">Spend</th><th class="r">Clicks</th><th class="r">Enquiries</th><th class="r">Cost / enquiry</th>} @else {<th>Runs</th><th class="r">Visits</th><th class="r">Enquiries</th><th class="r">Conversion</th>}<th>Compliance</th><th><span class="sr-only">Actions</span></th></tr>
         </thead>
         <tbody>
           @for (c of rows(); track c.id) {
@@ -82,16 +99,32 @@
               <td>
                 <div class="camp">
                   <span class="pf" [class]="c.platform">{{ c.platform === 'google' ? 'G' : 'M' }}</span>
-                  <div><b>{{ c.name }}</b><small>{{ c.platform === 'google' ? 'Google Ads' : 'Meta' }} · {{ c.type }} · {{ c.branch }}</small></div>
+                  <div>
+                    @if (isMock) { <b>{{ c.name }}</b> } @else { <a class="camp-name" [routerLink]="['/campaigns', c.id, 'performance']" title="Visits and conversion">{{ c.name }}</a> }
+                    <small>{{ c.platform === 'google' ? 'Google Ads' : 'Meta' }} · {{ c.type }}@if (audience().showBranch) { · {{ c.branch }}}</small>
+                    @if (!isMock) { <small class="lp">→ {{ landingPath(c) }}</small> }
+                  </div>
                 </div>
               </td>
               <td>{{ c.specialty }}</td>
               <td><span class="pill" [class]="statusTone[c.status]">{{ statusLabel[c.status] }}</span></td>
               <td class="r num">{{ inr(c.dailyBudget) }}</td>
-              <td class="r num">{{ c.spend ? inr(c.spend) : '—' }}</td>
-              <td class="r num">{{ c.clicks ? fmt(c.clicks) : '—' }}</td>
-              <td class="r num">{{ c.enquiries ? fmt(c.enquiries) : '—' }}</td>
-              <td class="r num">{{ cpl(c) }}</td>
+              @if (isMock) {
+                <td class="r num">{{ c.spend ? inr(c.spend) : '—' }}</td>
+                <td class="r num">{{ c.clicks ? fmt(c.clicks) : '—' }}</td>
+                <td class="r num">{{ c.enquiries ? fmt(c.enquiries) : '—' }}</td>
+                <td class="r num">{{ cpl(c) }}</td>
+              } @else {
+                <td class="num" style="white-space: nowrap">{{ shortDate(c.startDate) }}{{ c.endDate ? ' – ' + shortDate(c.endDate) : ' onward' }}</td>
+                <td class="r num">{{ c.visitCount ? fmt(c.visitCount) : '—' }}</td>
+                <td class="r num">
+                  @if (c.leadCount || c.tapCount) {
+                    <a [routerLink]="['/enquiries']" [queryParams]="{ campaign: c.id }" [title]="(c.leadCount ?? 0) + ' form enquiries · ' + (c.tapCount ?? 0) + ' call / WhatsApp taps'">{{ c.leadCount ?? 0 }}@if (c.tapCount) {<span class="muted"> + {{ c.tapCount }}</span>}</a>
+                    @if (c.newLeadCount) { <span class="pill blue" style="margin-left: 4px">{{ c.newLeadCount }} new</span> }
+                  } @else { — }
+                </td>
+                <td class="r num"><b>{{ conversion(c) }}</b></td>
+              }
               <td>
                 @if (c.compliance === 'needs_fix') {
                   <button type="button" class="pill red" style="border: 0; cursor: pointer" (click)="review(c)">Needs fix →</button>
@@ -100,13 +133,22 @@
                 }
               </td>
               <td class="r">
-                @if (c.status === 'active' || c.status === 'paused') {
-                  <button type="button" class="btn sm" (click)="toggle(c)">{{ c.status === 'active' ? 'Pause' : 'Resume' }}</button>
-                }
+                <div class="row-actions">
+                  @for (t of transitions(c); track t.to) {
+                    <button type="button" class="btn sm" [class.primary]="t.primary" [disabled]="busyId() === c.id" (click)="changeStatus(c, t.to)">{{ t.label }}</button>
+                  }
+                  @if (canView(c)) { <a class="btn sm" [href]="c.landingUrl" target="_blank" rel="noopener" [title]="'Open ' + c.landingUrl">View page ↗</a> }
+                  @if (!isMock) { <a class="btn sm" [routerLink]="['/campaigns', c.id, 'performance']">Performance</a> }
+                  @if (canEdit(c)) { <a class="btn sm" [routerLink]="['/campaigns', c.id, 'edit']">Edit</a> }
+                  @if (!isMock) { <button type="button" class="btn sm" (click)="copyAdLink(c)" title="Copy the link to use in the ad (with tracking)">Copy ad link</button> }
+                  @if (canDelete(c)) { <button type="button" class="btn sm" style="color: var(--red-ink)" [disabled]="busyId() === c.id" (click)="remove(c)">Delete</button> }
+                </div>
               </td>
             </tr>
           } @empty {
-            <tr><td colspan="10" class="muted" style="text-align: center; padding: 28px">No campaigns match these filters. <a routerLink="/campaigns/new">Create one →</a></td></tr>
+            <tr><td colspan="13" class="muted" style="text-align: center; padding: 28px">
+              @if (loading()) { Loading campaigns… } @else if (clientCampaigns().length) { No campaigns match these filters. } @else { No campaigns yet. <a routerLink="/campaigns/new">Create the first one →</a> }
+            </td></tr>
           }
         </tbody>
       </table>
@@ -126,6 +168,12 @@
             @for (d of c.descriptions; track $index) {
               <span class="desc">@for (p of highlight(d); track $index) {<span [class.flag]="p.flag">{{ p.t }}</span>}</span>
             }
+            @if (flaggedLandingLines().length) {
+              <span class="tag" style="color: var(--red-ink); margin-top: 6px">Landing page</span>
+              @for (t of flaggedLandingLines(); track $index) {
+                <span class="desc">@for (p of highlight(t); track $index) {<span [class.flag]="p.flag">{{ p.t }}</span>}</span>
+              }
+            }
             <ul>
               @for (f of findings(); track f.phrase) { <li>“{{ f.phrase }}” — {{ f.reason }}</li> }
             </ul>
@@ -134,14 +182,18 @@
             <span class="tag" style="color: var(--green-ink)">Suggested rewrite</span>
             @for (h of rewrite()?.headlines; track $index) { <span class="headline">{{ h }}</span> }
             @for (d of rewrite()?.descriptions; track $index) { <span class="desc">{{ d }}</span> }
+            @if (rewrittenLandingLines().length) {
+              <span class="tag" style="color: var(--green-ink); margin-top: 6px">Landing page</span>
+              @for (t of rewrittenLandingLines(); track $index) { <span class="desc">{{ t }}</span> }
+            }
             <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px">
-              <button type="button" class="btn green" (click)="approveFix()">Approve &amp; update ad</button>
-              <button type="button" class="btn">Edit first</button>
+              <button type="button" class="btn green" [disabled]="busyId() === c.id" (click)="approveFix()">Approve &amp; update ad</button>
+              @if (canEdit(c)) { <a class="btn" [routerLink]="['/campaigns', c.id, 'edit']">Edit first</a> }
             </div>
           </div>
         </div>
       } @else {
-        <span class="pill green" style="align-self: flex-start">✓ No issues found in this ad’s copy</span>
+        <span class="pill green" style="align-self: flex-start">✓ No issues found in this ad or its landing page</span>
       }
     </section>
   }

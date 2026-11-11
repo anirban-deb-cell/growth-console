@@ -26,13 +26,14 @@ const POST_STATUS_TONE: Record<PostStatus, string> = { published: 'green', sched
         <div class="actions"><a routerLink="/blog/new" class="btn primary">+ New post</a></div>
       </header>
 
-      <section class="grid three">
+      <section class="grid kpis">
         @if (isMock) {
           <div class="kpi"><span class="label">Search clicks · 30 days</span><span class="value">{{ totals().clicks }}</span><div class="foot">from published posts</div></div>
           <div class="kpi"><span class="label">Enquiries from posts · 30 days</span><span class="value">{{ totals().leads }}</span><div class="foot">contact clicks on post pages</div></div>
         } @else {
           <div class="kpi"><span class="label">Live on the website</span><span class="value">{{ (counts()['published'] ?? 0) + (counts()['scheduled'] ?? 0) }}</span><div class="foot">{{ counts()['scheduled'] ?? 0 }} scheduled</div></div>
           <div class="kpi"><span class="label">Waiting</span><span class="value">{{ (counts()['draft'] ?? 0) + (counts()['in_review'] ?? 0) }}</span><div class="foot">{{ counts()['draft'] ?? 0 }} drafts · {{ counts()['in_review'] ?? 0 }} in review</div></div>
+          <a class="kpi" routerLink="/enquiries" [queryParams]="{ campaign: 'blog' }" style="text-decoration: none; color: inherit"><span class="label">Visits → enquiries</span><span class="value">{{ fmt(totals().visits) }} → {{ totals().blogLeads }}</span><div class="foot">{{ totals().conversion }} conversion · all posts</div></a>
         }
         <div class="kpi"><span class="label">Average SEO score</span><span class="value">{{ totals().avg }}<small>/100</small></span><div class="foot">across {{ posts().length }} posts</div></div>
       </section>
@@ -55,7 +56,7 @@ const POST_STATUS_TONE: Record<PostStatus, string> = { published: 'green', sched
 
         <div class="table-wrap">
           <table class="data" style="min-width: 900px">
-            <thead><tr><th>Post</th><th>Status</th><th>SEO</th><th>Ready for Google</th>@if (isMock) {<th class="r">Clicks · 30 days</th><th class="r">Leads · 30 days</th>}<th><span class="sr-only">Actions</span></th></tr></thead>
+            <thead><tr><th>Post</th><th>Status</th><th>SEO</th><th>Ready for Google</th>@if (isMock) {<th class="r">Clicks · 30 days</th><th class="r">Leads · 30 days</th>} @else {<th class="r">Visits</th><th class="r">Enquiries</th><th class="r">Conversion</th>}<th><span class="sr-only">Actions</span></th></tr></thead>
             <tbody>
               @for (p of visible(); track p.id) {
                 <tr>
@@ -65,13 +66,21 @@ const POST_STATUS_TONE: Record<PostStatus, string> = { published: 'green', sched
                   <td>
                     <div class="checks">
                       <span class="check" [class.on]="p.hasSchema">Schema</span>
-                      <span class="check" [class.on]="p.hasConversion">Conversion</span>
                       <span class="check" [class.on]="p.hasVideo">Video</span>
                     </div>
                   </td>
                   @if (isMock) {
                     <td class="r num">{{ p.status === 'published' ? fmt(p.clicks30d) : '—' }}</td>
                     <td class="r num">{{ p.status === 'published' ? p.leads30d : '—' }}</td>
+                  } @else {
+                    <td class="r num">{{ p.visitCount ? fmt(p.visitCount) : '—' }}</td>
+                    <td class="r num">
+                      @if (p.leadCount) {
+                        <a routerLink="/enquiries" [queryParams]="{ campaign: 'blog:' + p.id }" title="Contact Us enquiries from people who read this post">{{ p.leadCount }}</a>
+                        @if (p.newLeadCount) { <span class="pill blue" style="margin-left: 4px">{{ p.newLeadCount }} new</span> }
+                      } @else { — }
+                    </td>
+                    <td class="r num"><b>{{ conversion(p) }}</b></td>
                   }
                   <td class="r actions">
                     @if (p.status === 'published') { <a [href]="p.url || 'https://' + clients.current().website + '/blog/' + p.slug" target="_blank" rel="noopener">View ↗</a> }
@@ -80,7 +89,7 @@ const POST_STATUS_TONE: Record<PostStatus, string> = { published: 'green', sched
                   </td>
                 </tr>
               } @empty {
-                <tr><td colspan="7" class="muted" style="text-align: center; padding: 28px">
+                <tr><td colspan="8" class="muted" style="text-align: center; padding: 28px">
                   @if (loading()) { Loading posts… } @else if (posts().length) { No posts match. } @else { No posts yet. <a routerLink="/blog/new">Write the first one →</a> }
                 </td></tr>
               }
@@ -158,12 +167,23 @@ export class BlogListPage implements OnInit {
     return {
       clicks: fmt(published.reduce((a, p) => a + p.clicks30d, 0)),
       leads: published.reduce((a, p) => a + p.leads30d, 0),
-      avg: all.length ? Math.round(all.reduce((a, p) => a + p.seoScore, 0) / all.length) : 0
+      avg: all.length ? Math.round(all.reduce((a, p) => a + p.seoScore, 0) / all.length) : 0,
+      visits: all.reduce((a, p) => a + (p.visitCount ?? 0), 0),
+      blogLeads: all.reduce((a, p) => a + (p.leadCount ?? 0), 0),
+      conversion: (() => {
+        const v = all.reduce((a, p) => a + (p.visitCount ?? 0), 0);
+        return v ? ((100 * all.reduce((a, p) => a + (p.leadCount ?? 0), 0)) / v).toFixed(1) + '%' : '—';
+      })()
     };
   });
 
   fmt = fmt;
   shortDate = shortDate;
+
+  /** Enquiries credited to the post ÷ its visits, all time. */
+  conversion(p: BlogPost): string {
+    return p.visitCount ? ((100 * (p.leadCount ?? 0)) / p.visitCount).toFixed(1) + '%' : '—';
+  }
 
   async remove(p: BlogPost): Promise<void> {
     if (!confirm(`Delete “${p.title}”? This can’t be undone.`)) return;

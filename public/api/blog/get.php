@@ -10,7 +10,7 @@ require_user();
 
 $id = (int) ($_GET['id'] ?? 0);
 $stmt = db()->prepare('SELECT * FROM blog_posts WHERE id = ? AND site_key = ?');
-$stmt->execute([$id, blog_site()]);
+$stmt->execute([$id, site_key()]);
 $row = $stmt->fetch();
 if (!$row) {
     fail('Post not found.', 404);

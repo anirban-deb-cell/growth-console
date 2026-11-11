@@ -3,7 +3,12 @@
  * Growth Console API configuration — TEMPLATE.
  *
  * Copy this file to `config.php` in the same folder ON THE SERVER and fill in
- * the real values. config.php is gitignored, excluded from the Angular build,
+ * the real values.
+ *
+ * On your own computer, put local settings (local database, 'env' =>
+ * 'development', 'uploads_url' => '/uploads') in `config.local.php` instead:
+ * when it exists it is used in place of config.php, so config.php can keep
+ * the server's values. config.local.php is never committed or deployed. config.php is gitignored, excluded from the Angular build,
  * and blocked from web access by api/.htaccess — it only ever gets read by PHP.
  */
 

@@ -20,7 +20,7 @@ $in = read_json();
 $data = blog_validate($in, $user);
 $post = $data['post'];
 $id = isset($in['id']) && $in['id'] !== '' && $in['id'] !== null ? (int) $in['id'] : null;
-$site = blog_site();
+$site = site_key();
 $pdo = db();
 
 if ($id !== null) {

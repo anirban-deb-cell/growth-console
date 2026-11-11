@@ -1,6 +1,6 @@
 import { Component, input } from '@angular/core';
 
-export type IconName = 'briefcase' | 'grid' | 'megaphone' | 'search' | 'doc' | 'star' | 'globe' | 'chevrons' | 'alert' | 'trend' | 'warning' | 'plus' | 'check';
+export type IconName = 'briefcase' | 'grid' | 'megaphone' | 'search' | 'doc' | 'star' | 'globe' | 'chevrons' | 'alert' | 'trend' | 'warning' | 'plus' | 'check' | 'inbox';
 
 /** Inline stroke icons — no icon font, inherits the text colour. */
 @Component({
@@ -21,6 +21,7 @@ export type IconName = 'briefcase' | 'grid' | 'megaphone' | 'search' | 'doc' | '
         @case ('warning') { <path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17v.5"/> }
         @case ('plus') { <path d="M12 5v14M5 12h14"/> }
         @case ('check') { <path d="M5 12l5 5 9-10"/> }
+        @case ('inbox') { <path d="M3 13l3-8h12l3 8v6H3zM3 13h5l1.5 3h5L16 13h5"/> }
       }
     </svg>
   `,

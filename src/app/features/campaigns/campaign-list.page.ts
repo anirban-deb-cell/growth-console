@@ -1,7 +1,10 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AuthService, apiMessage } from '../../core/auth/auth.service';
+import { campaignAudience } from '../../core/data/audience';
 import { Campaign, CampaignStatus, ComplianceState, Platform } from '../../core/data/models';
-import { CampaignStore, ClientStore, ToastService } from '../../core/data/stores';
+import { ClientStore, ToastService } from '../../core/data/stores';
+import { CAMPAIGN_TRANSITIONS, CampaignRepository, toSaveInput } from './campaign-repository';
 import { LineChartComponent, LinePoint } from '../../shared/charts/line-chart.component';
 import { checkCompliance, suggestRewrite } from '../../shared/compliance';
 import { fmt, inr, shortDate } from '../../shared/format';
@@ -39,12 +42,27 @@ export const COMPLIANCE_TONE: Record<ComplianceState, string> = { passed: 'green
     .ad ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: #7A1A10; line-height: 1.5; }
     .pacing { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
     .pacing div:first-child { display: flex; justify-content: space-between; gap: 10px; }
+    .camp .lp { font-family: var(--mono); font-size: 11px; }
+    .camp .camp-name { font-weight: 800; color: var(--ink); }
+    .camp .camp-name:hover { color: var(--blue); text-decoration: underline; }
+    .row-actions { white-space: nowrap; display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
   `
 })
-export class CampaignListPage {
-  private store = inject(CampaignStore);
+export class CampaignListPage implements OnInit {
+  private repo = inject(CampaignRepository);
+  private auth = inject(AuthService);
   clients = inject(ClientStore);
   private toast = inject(ToastService);
+  readonly isMock = this.repo.mode === 'mock';
+  readonly isAdmin = computed(() => this.auth.user()?.role === 'admin');
+  /** Hospital (Specialty, branches) or agency (Service) wording. */
+  readonly audience = computed(() => campaignAudience(this.clients.current()));
+
+  private all = signal<Campaign[]>([]);
+  loading = signal(true);
+  error = signal('');
+  /** Campaign id whose status change / save is in progress. */
+  busyId = signal<string | null>(null);
 
   platform = signal<PlatformFilter>('all');
   status = signal<StatusFilter>('all');
@@ -58,7 +76,42 @@ export class CampaignListPage {
   readonly complianceTone = COMPLIANCE_TONE;
   readonly statusTabs: StatusFilter[] = ['all', 'active', 'paused', 'in_review', 'draft', 'ended'];
 
-  clientCampaigns = computed(() => this.store.forClient(this.clients.current().id));
+  clientCampaigns = computed(() => this.all());
+
+  ngOnInit(): void {
+    this.load();
+  }
+
+  async load(): Promise<void> {
+    this.loading.set(true);
+    this.error.set('');
+    try {
+      this.all.set(await this.repo.list());
+    } catch (err) {
+      this.error.set(apiMessage(err));
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  private replace(updated: Campaign): void {
+    this.all.update((list) => list.map((c) => (c.id === updated.id ? updated : c)));
+  }
+
+  /** Live / waiting counts for the API view (performance numbers need the Ads APIs). */
+  pipeline = computed(() => {
+    const list = this.clientCampaigns();
+    const n = (s: CampaignStatus) => list.filter((c) => c.status === s).length;
+    return {
+      active: n('active'),
+      paused: n('paused'),
+      review: n('in_review'),
+      draft: n('draft'),
+      dailyLive: inr(list.filter((c) => c.status === 'active').reduce((a, c) => a + c.dailyBudget, 0)),
+      leads: list.reduce((a, c) => a + (c.leadCount ?? 0), 0),
+      newLeads: list.reduce((a, c) => a + (c.newLeadCount ?? 0), 0)
+    };
+  });
   specialties = computed(() => [...new Set(this.clientCampaigns().map((c) => c.specialty))].sort());
 
   private byPlatform = computed(() => this.clientCampaigns().filter((c) => this.platform() === 'all' || c.platform === this.platform()));
@@ -124,27 +177,124 @@ export class CampaignListPage {
     return id ? list.find((c) => c.id === id) : list.find((c) => c.compliance === 'needs_fix');
   });
 
+  /** Landing page lines the check reads (campaign pages only). */
+  landingLines = computed(() => {
+    const c = this.fixing();
+    const lp = c?.landingMode === 'page' ? c.landingPage : undefined;
+    return lp ? [lp.headline, lp.subheadline ?? '', lp.offer ?? '', ...lp.highlights, ...lp.body].filter((t) => t.trim()) : [];
+  });
+
   findings = computed(() => {
     const c = this.fixing();
-    return c ? checkCompliance([...c.headlines, ...c.descriptions].join(' ')) : [];
+    return c ? checkCompliance([...c.headlines, ...c.descriptions, ...this.landingLines()].join(' ')) : [];
   });
+
+  /** Landing page lines that contain a flagged phrase, for the "current" column. */
+  flaggedLandingLines = computed(() => this.landingLines().filter((t) => checkCompliance(t).length));
 
   rewrite = computed(() => {
     const c = this.fixing();
-    return c ? { headlines: c.headlines.map(suggestRewrite), descriptions: c.descriptions.map(suggestRewrite) } : null;
+    if (!c) return null;
+    const lp = c.landingPage;
+    return {
+      headlines: c.headlines.map(suggestRewrite),
+      descriptions: c.descriptions.map(suggestRewrite),
+      landingPage: lp && {
+        ...lp,
+        headline: suggestRewrite(lp.headline),
+        subheadline: lp.subheadline ? suggestRewrite(lp.subheadline) : lp.subheadline,
+        offer: lp.offer ? suggestRewrite(lp.offer) : lp.offer,
+        highlights: lp.highlights.map(suggestRewrite),
+        body: lp.body.map(suggestRewrite)
+      }
+    };
   });
+
+  /** Rewritten landing page lines that changed, for the "suggested" column. */
+  rewrittenLandingLines = computed(() => this.flaggedLandingLines().map(suggestRewrite));
 
   fmt = fmt;
   inr = inr;
+  shortDate = shortDate;
+
+  /** Form enquiries ÷ landing-page visits, since launch. */
+  conversion(c: Campaign): string {
+    return c.visitCount ? ((100 * (c.leadCount ?? 0)) / c.visitCount).toFixed(1) + '%' : '—';
+  }
 
   cpl(c: Campaign): string {
     return c.enquiries ? inr(c.spend / c.enquiries) : '—';
   }
 
-  toggle(c: Campaign): void {
-    const next = c.status === 'active' ? 'paused' : 'active';
-    this.store.update(c.id, { status: next });
-    this.toast.show(`${c.name} ${next === 'active' ? 'resumed' : 'paused'}`);
+  /** Status buttons this campaign offers (admins only — same rules as the API). */
+  transitions(c: Campaign): { to: CampaignStatus; label: string; primary?: boolean }[] {
+    if (!this.isAdmin()) return [];
+    const labels: Partial<Record<CampaignStatus, string>> = {
+      active: c.status === 'in_review' ? 'Approve & launch' : 'Resume',
+      paused: 'Pause',
+      ended: 'End',
+      draft: 'Send back'
+    };
+    return (CAMPAIGN_TRANSITIONS[c.status] ?? []).map((to) => ({ to, label: labels[to] ?? to, primary: to === 'active' && c.status === 'in_review' }));
+  }
+
+  /** The landing page is on the website only once the campaign is live; an existing page always is. */
+  canView(c: Campaign): boolean {
+    return !!c.landingUrl && (c.landingMode === 'url' || c.status === 'active' || c.status === 'paused');
+  }
+
+  canEdit(c: Campaign): boolean {
+    return c.status !== 'ended' && (this.isAdmin() || c.status === 'draft' || c.status === 'in_review');
+  }
+
+  canDelete(c: Campaign): boolean {
+    return c.status !== 'active' && c.status !== 'paused' && (this.isAdmin() || c.status === 'draft' || c.status === 'in_review');
+  }
+
+  async changeStatus(c: Campaign, to: CampaignStatus): Promise<void> {
+    if (to === 'ended' && !confirm(`End “${c.name}”? An ended campaign can’t be restarted.`)) return;
+    this.busyId.set(c.id);
+    try {
+      this.replace(await this.repo.setStatus(c.id, to));
+      const done: Partial<Record<CampaignStatus, string>> = { active: c.status === 'in_review' ? 'approved and launched' : 'resumed', paused: 'paused', ended: 'ended', draft: 'sent back to draft' };
+      this.toast.show(`${c.name} ${done[to] ?? 'updated'}`);
+    } catch (err) {
+      this.toast.show(apiMessage(err, 'Couldn’t change the campaign.'));
+    } finally {
+      this.busyId.set(null);
+    }
+  }
+
+  async remove(c: Campaign): Promise<void> {
+    if (!confirm(`Delete “${c.name}”? This can’t be undone.`)) return;
+    this.busyId.set(c.id);
+    try {
+      await this.repo.remove(c.id);
+      this.all.update((list) => list.filter((x) => x.id !== c.id));
+      this.toast.show('Campaign deleted');
+    } catch (err) {
+      this.toast.show(apiMessage(err, 'Couldn’t delete the campaign.'));
+    } finally {
+      this.busyId.set(null);
+    }
+  }
+
+  async copyAdLink(c: Campaign): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(c.adUrl ?? c.landingUrl);
+      this.toast.show('Ad link copied — paste it as the final URL in Google Ads / Meta');
+    } catch {
+      this.toast.show(c.adUrl ?? c.landingUrl);
+    }
+  }
+
+  /** "/campaigns/knee-replacement" or the page's path on the site. */
+  landingPath(c: Campaign): string {
+    try {
+      return new URL(c.landingUrl).pathname;
+    } catch {
+      return c.landingUrl;
+    }
   }
 
   review(c: Campaign): void {
@@ -152,12 +302,20 @@ export class CampaignListPage {
     document.getElementById('compliance')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  approveFix(): void {
+  async approveFix(): Promise<void> {
     const c = this.fixing();
     const r = this.rewrite();
     if (!c || !r) return;
-    this.store.update(c.id, { headlines: r.headlines, descriptions: r.descriptions, compliance: 'passed' });
-    this.toast.show('Ad copy updated · sent to the platform for review');
+    this.busyId.set(c.id);
+    try {
+      const input = toSaveInput(c);
+      this.replace(await this.repo.save({ ...input, headlines: r.headlines, descriptions: r.descriptions, landingPage: r.landingPage ?? input.landingPage, compliance: 'passed' }));
+      this.toast.show('Ad copy updated' + (c.status === 'active' ? ' · update it in the ad platform too' : ''));
+    } catch (err) {
+      this.toast.show(apiMessage(err, 'Couldn’t update the ad copy.'));
+    } finally {
+      this.busyId.set(null);
+    }
   }
 
   /** Splits text so flagged phrases can be highlighted without innerHTML. */

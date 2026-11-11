@@ -43,6 +43,7 @@ Thumbs.db
 
 # Growth Console API: real credentials and user uploads never go in git.
 /public/api/config.php
+/public/api/config.local.php
 /public/uploads/*
 !/public/uploads/.htaccess
 

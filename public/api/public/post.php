@@ -21,7 +21,7 @@ $stmt = db()->prepare(
     "SELECT * FROM blog_posts
      WHERE site_key = ? AND slug = ? AND (status = 'published' OR (status = 'scheduled' AND published_at <= CURDATE()))"
 );
-$stmt->execute([blog_site(), $slug]);
+$stmt->execute([site_key(), $slug]);
 $row = $stmt->fetch();
 if (!$row) {
     fail('Post not found.', 404);

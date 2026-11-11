@@ -31,6 +31,8 @@ export const CLIENT_MODULES: ModuleDef[] = [
       children: [{ label: 'All campaigns', path: '/campaigns' }, { label: 'New campaign', path: '/campaigns/new' }]
     }
   },
+  // Every lead from the website in one inbox: campaign landing pages and the Contact Us form.
+  { key: 'enquiries', nav: { label: 'Enquiries', path: '/enquiries', icon: 'inbox' } },
   { key: 'seo', nav: { label: 'SEO', path: '/seo', icon: 'search' } },
   {
     key: 'blog',

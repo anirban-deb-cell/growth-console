@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
+    "start": "ng serve --port 4400",
     "start:php": "php -S localhost:$npm_package_config_phpPort -t public",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",

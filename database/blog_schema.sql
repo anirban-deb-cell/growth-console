@@ -114,3 +114,23 @@ CREATE TABLE IF NOT EXISTS audit_log (
   KEY idx_audit_log_entity (entity, entity_id),
   KEY idx_audit_log_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Every visit to a published blog post, with the visit's tracking tags —
+-- the blog's visits / conversion in the console. Written by the website's
+-- post page; repeat visits by the same person within 30 minutes count once.
+-- No IP address is stored: visitor_hash is a one-way hash that changes daily.
+CREATE TABLE IF NOT EXISTS blog_visits (
+  id                BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  site_key          VARCHAR(64)  NOT NULL DEFAULT 'medgrowth',
+  post_id           INT UNSIGNED NOT NULL,
+  visitor_hash      CHAR(64)     NOT NULL,
+  utm_source        VARCHAR(60)  NULL,          -- or google / organic, a referring site, (direct)
+  utm_medium        VARCHAR(60)  NULL,
+  utm_campaign      VARCHAR(120) NULL,
+  referrer_host     VARCHAR(190) NULL,
+  device            ENUM('mobile', 'tablet', 'desktop') NULL,
+  created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_blog_visits_post (post_id, created_at),
+  KEY idx_blog_visits_dedupe (post_id, visitor_hash, created_at),
+  CONSTRAINT fk_blog_visits_post FOREIGN KEY (post_id) REFERENCES blog_posts (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

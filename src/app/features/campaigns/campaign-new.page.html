@@ -2,15 +2,21 @@
   <header class="page-head">
     <div class="titles">
       <a routerLink="/campaigns" class="back-link">← All campaigns</a>
-      <div class="title-row"><h1>New campaign</h1><span class="sample-badge">Sample data</span></div>
+      <div class="title-row"><h1>{{ editing ? 'Edit campaign' : 'New campaign' }}</h1>@if (isMock) { <span class="sample-badge">Sample data</span> }</div>
       <p>For {{ client().name }}. Nothing goes live until the client approves it and the ad platform reviews it.</p>
     </div>
   </header>
 
+  @if (loading) {
+    <div class="card muted">Loading campaign…</div>
+  } @else if (loadError) {
+    <div class="alert danger" role="alert"><div class="body"><strong>Couldn’t open this campaign</strong><span>{{ loadError }}</span></div><a routerLink="/campaigns" class="btn">Back to campaigns</a></div>
+  } @else {
+
   <ol class="stepper" aria-label="Steps">
     @for (s of steps; track s; let i = $index) {
-      <li [class.done]="i < step()" [class.now]="i === step()">
-        <button type="button" (click)="goTo(i)" [disabled]="i >= step()" [attr.aria-current]="i === step() ? 'step' : null">
+      <li [class.done]="i < step()" [class.now]="i === step()" [class.open]="i > step() && i <= reachable">
+        <button type="button" (click)="goTo(i)" [disabled]="i === step() || i > reachable" [attr.aria-current]="i === step() ? 'step' : null">
           <span class="n">{{ i < step() ? '✓' : i + 1 }}</span>{{ s }}
         </button>
       </li>
@@ -26,26 +32,27 @@
             <span class="label">Channel</span>
             <div class="option-cards">
               @for (c of channels; track c.id) {
-                <button type="button" class="option-card" [class.on]="channelId() === c.id" [attr.aria-pressed]="channelId() === c.id" (click)="pickChannel(c.id)"><b>{{ c.title }}</b><span>{{ c.detail }}</span></button>
+                <button type="button" class="option-card" [class.on]="channelId() === c.id" [attr.aria-pressed]="channelId() === c.id" (click)="pickChannel(c.id)"><b>{{ c.title }}</b><span>{{ audience().channelDetail[c.id] || c.detail }}</span></button>
               }
             </div>
           </div>
           <div class="field">
             <span class="label">What counts as an enquiry</span>
-            <div class="option-cards four">
-              @for (o of objectives; track o.id) {
+            <div class="option-cards" [class.four]="objectiveOptions().length === 4">
+              @for (o of objectiveOptions(); track o.id) {
                 <button type="button" class="option-card" [class.on]="objective() === o.id" [attr.aria-pressed]="objective() === o.id" (click)="objective.set(o.id)"><b>{{ o.title }}</b><span>{{ o.detail }}</span></button>
               }
             </div>
           </div>
-          <div class="row-2">
+          <div [class.row-2]="audience().showBranch">
             <div class="field">
-              <label for="specialty">Specialty</label>
+              <label for="specialty">{{ audience().offeringLabel }}</label>
               <select id="specialty" [(ngModel)]="specialty" (ngModelChange)="suggestName()">
-                <option value="" disabled>Choose a specialty</option>
-                @for (s of specialties; track s) { <option [value]="s">{{ s }}</option> }
+                <option value="" disabled>Choose a {{ audience().offeringLabel.toLowerCase() }}</option>
+                @for (s of offeringOptions; track s) { <option [value]="s">{{ s }}</option> }
               </select>
             </div>
+            @if (audience().showBranch) {
             <div class="field">
               <label for="branch">Branch</label>
               <select id="branch" [(ngModel)]="branch">
@@ -53,11 +60,12 @@
                 @for (b of client().branches; track b) { <option [value]="b">{{ b }}</option> }
               </select>
             </div>
+            }
           </div>
           <div class="field">
             <label for="name">Campaign name</label>
             <input id="name" type="text" placeholder="e.g. Knee replacement · Search" [(ngModel)]="name">
-            <span class="hint">Shown in reports. Use specialty + channel so clients can scan the list.</span>
+            <span class="hint">Shown in reports. Use {{ audience().offeringLabel.toLowerCase() }} + channel so the list is easy to scan.</span>
           </div>
         }
 
@@ -66,7 +74,7 @@
           <div class="field">
             <span class="label">Where</span>
             <div class="seg">
-              <button type="button" [class.on]="locationMode() === 'radius'" (click)="pickLocationMode('radius')">Around the branch</button>
+              <button type="button" [class.on]="locationMode() === 'radius'" (click)="pickLocationMode('radius')">{{ audience().showBranch ? 'Around the branch' : 'Around ' + client().city }}</button>
               <button type="button" [class.on]="locationMode() === 'cities'" (click)="pickLocationMode('cities')">Cities</button>
               <button type="button" [class.on]="locationMode() === 'countries'" (click)="pickLocationMode('countries')">Other countries</button>
             </div>
@@ -74,7 +82,7 @@
           @switch (locationMode()) {
             @case ('radius') {
               <div class="field">
-                <label for="radius">Radius around {{ branch === 'All branches' ? 'each branch' : branch }}: <b class="num">{{ radiusKm }} km</b></label>
+                <label for="radius">Radius around {{ !audience().showBranch ? client().city : branch === 'All branches' ? 'each branch' : branch }}: <b class="num">{{ radiusKm }} km</b></label>
                 <input id="radius" type="range" min="3" max="50" step="1" [(ngModel)]="radiusKm" style="padding: 0; min-height: 32px">
               </div>
             }
@@ -86,7 +94,7 @@
             }
             @case ('countries') {
               <div class="field">
-                <span class="label">Countries for medical travel</span>
+                <span class="label">{{ audience().agency ? 'Countries' : 'Countries for medical travel' }}</span>
                 <div class="toggles">
                   @for (c of countries; track c) {
                     <button type="button" [class.on]="selectedCountries().includes(c)" [attr.aria-pressed]="selectedCountries().includes(c)" (click)="toggleIn(selectedCountries, c)">{{ c }}</button>
@@ -109,12 +117,14 @@
               <div class="field"><label for="amin">Minimum age</label><input id="amin" type="number" min="18" max="65" [(ngModel)]="ageMin"></div>
               <div class="field"><label for="amax">Maximum age</label><input id="amax" type="number" min="18" max="65" [(ngModel)]="ageMax"></div>
             </div>
-            <div class="note">Meta doesn't allow targeting people by health conditions, so audiences use location, age and language only.</div>
+            @if (!audience().agency) {
+              <div class="note">Meta doesn't allow targeting people by health conditions, so audiences use location, age and language only.</div>
+            }
           }
           @if (isGoogleSearch()) {
             <div class="field">
               <label for="kw">Search keywords <span class="optional">(one per line)</span></label>
-              <textarea id="kw" rows="5" placeholder="knee replacement cost hyderabad&#10;knee replacement surgeon near me" [(ngModel)]="keywords"></textarea>
+              <textarea id="kw" rows="5" [placeholder]="audience().keywordPlaceholder" [(ngModel)]="keywords"></textarea>
             </div>
           }
         }
@@ -157,33 +167,121 @@
             <textarea id="desc" rows="3" [maxlength]="descriptionLimit" placeholder="Experienced orthopedic surgeons and in-house physiotherapy. Book a consultation." [(ngModel)]="description"></textarea>
             <span class="hint" [class.warn]="description.length > descriptionLimit - 5">{{ description.length }} / {{ descriptionLimit }}</span>
           </div>
-          <div class="field">
-            <label for="lp">Landing page</label>
-            <select id="lp" [(ngModel)]="landingUrl">
-              <option value="" disabled>Choose a page on {{ client().website }}</option>
-              @for (o of landingOptions(); track o.url) { <option [value]="o.url">{{ o.label }}</option> }
-            </select>
-          </div>
         }
 
         @case (4) {
+          <h2 class="step-title">Where does the ad send people?</h2>
+          <div class="option-cards">
+            <button type="button" class="option-card" [class.on]="landingMode() === 'page'" [attr.aria-pressed]="landingMode() === 'page'" (click)="landingMode.set('page')"><b>A landing page for this campaign</b><span>Its own page on {{ client().website }} — not in the site menu, only reached from the ad.</span></button>
+            <button type="button" class="option-card" [class.on]="landingMode() === 'url'" [attr.aria-pressed]="landingMode() === 'url'" (click)="landingMode.set('url')"><b>An existing page</b><span>Home, contact, a blog post or any page on the website.</span></button>
+          </div>
+
+          @if (landingMode() === 'page') {
+            <div class="field">
+              <label for="slug">Page address</label>
+              <div class="slug-row"><span>{{ client().website }}/campaigns/</span><input id="slug" type="text" [ngModel]="effectiveSlug" (ngModelChange)="onSlugInput($event)" placeholder="knee-replacement"></div>
+              <span class="hint">Lowercase letters, numbers and hyphens. Keep it short — it shows in the ad.</span>
+            </div>
+            <div class="field">
+              <label for="lph">Headline</label>
+              <input id="lph" type="text" maxlength="160" placeholder="Walk again without knee pain" [(ngModel)]="lpHeadline">
+            </div>
+            <div class="field">
+              <label for="lps">Sub-headline <span class="optional">(optional)</span></label>
+              <input id="lps" type="text" maxlength="300" placeholder="Knee replacement by experienced surgeons in Hyderabad" [(ngModel)]="lpSubheadline">
+            </div>
+            <div class="field">
+              <label for="lpo">Offer <span class="optional">(optional — shown as a badge)</span></label>
+              <input id="lpo" type="text" maxlength="160" placeholder="Free first consultation till 30 Nov" [(ngModel)]="lpOffer">
+            </div>
+            <div class="field">
+              <label for="lphl">Highlights <span class="optional">(one per line, up to 10)</span></label>
+              <textarea id="lphl" rows="4" placeholder="NABH-accredited hospital&#10;Physiotherapy in-house&#10;Cashless insurance" [(ngModel)]="lpHighlights"></textarea>
+            </div>
+            <div class="field">
+              <label for="lpb">Page text <span class="optional">(optional — leave a blank line between paragraphs)</span></label>
+              <textarea id="lpb" rows="6" [(ngModel)]="lpBody"></textarea>
+            </div>
+
+            <div class="field">
+              <span class="label">Photos <span class="optional">(optional — the first one is the large photo at the top)</span></span>
+              <div class="image-list">
+                @for (image of lpImages; track image; let i = $index) {
+                  <div class="image-row">
+                    <label class="image-picker">
+                      @if (image.previewUrl) { <img [src]="image.previewUrl" alt=""> } @else { <span>Choose file</span> }
+                      <input type="file" accept="image/jpeg,image/png,image/webp" (change)="onImageSelected($event, image)" [attr.aria-label]="'Photo ' + (i + 1)">
+                    </label>
+                    <div class="image-meta">
+                      <input type="text" placeholder="Choose a file to upload, or paste an image link" [(ngModel)]="image.path" [disabled]="!!image.uploading" [attr.aria-label]="'Photo ' + (i + 1) + ' link'">
+                      @if (image.uploading) { <span class="hint">Uploading…</span> }
+                      @if (image.error) { <span class="hint warn">{{ image.error }}</span> }
+                    </div>
+                    <button type="button" class="icon-btn" (click)="removeImage(i)" aria-label="Remove photo">✕</button>
+                  </div>
+                }
+              </div>
+              @if (lpImages.length < maxLpImages) { <button type="button" class="btn" style="align-self: flex-start" (click)="addImage()">+ Add photo</button> }
+            </div>
+
+            <div class="field">
+              <label for="lpv">YouTube video <span class="optional">(optional)</span></label>
+              <input id="lpv" type="text" placeholder="https://www.youtube.com/watch?v=…" [(ngModel)]="lpVideoUrl">
+            </div>
+
+            <div class="row-2">
+              <div class="field">
+                <label for="cta">Button text <span class="optional">(optional)</span></label>
+                <input id="cta" type="text" maxlength="40" [placeholder]="ctaText" [(ngModel)]="ctaLabel">
+              </div>
+              <div class="field">
+                <label for="phone">Phone number @if (!needsPhone) {<span class="optional">(optional)</span>}</label>
+                <input id="phone" type="tel" placeholder="+91 98765 43210" [(ngModel)]="phone">
+              </div>
+            </div>
+            <div class="field">
+              <label for="wa">WhatsApp number @if (!needsWhatsapp) {<span class="optional">(optional)</span>}</label>
+              <input id="wa" type="tel" placeholder="+91 98765 43210" [(ngModel)]="whatsapp">
+            </div>
+            @if (objective() === 'forms') {
+              <div class="note">The page shows an enquiry form asking for: {{ audience().formFields.join(', ') }}. Submissions arrive in <b>Campaigns → Enquiries</b>.</div>
+            }
+            <div class="note">The page goes live on the website once the campaign is launched. It isn’t linked from the site’s menu and tells search engines not to index it, so only people from the ad see it.</div>
+          } @else {
+            <div class="field">
+              <label for="lp">Page on {{ client().website }}</label>
+              <input id="lp" type="url" list="lp-options" placeholder="https://{{ client().website }}/contact" [(ngModel)]="landingUrl">
+              <datalist id="lp-options">
+                @for (o of landingOptions(); track o.url) { <option [value]="o.url">{{ o.label }}</option> }
+              </datalist>
+              <span class="hint">Pick a suggestion or paste any page address.</span>
+            </div>
+          }
+        }
+
+        @case (5) {
           <h2 class="step-title">Tracking &amp; review</h2>
           <label class="check"><input type="checkbox" [(ngModel)]="trackingNumber"><span><b>Use a tracking phone number</b>Calls from this campaign are counted and recorded as enquiries.</span></label>
-          <label class="check"><input type="checkbox" [(ngModel)]="whatsappNumber"><span><b>Route WhatsApp chats to the front desk</b>With an instant auto-reply showing branch timings.</span></label>
+          <label class="check"><input type="checkbox" [(ngModel)]="whatsappNumber"><span><b>Route WhatsApp chats to {{ audience().agency ? 'the sales team' : 'the front desk' }}</b>With an instant auto-reply showing {{ audience().agency ? 'office hours' : 'branch timings' }}.</span></label>
           <div class="field" style="margin-top: 6px">
             <label for="conv">Google Ads conversion ID <span class="optional">(optional)</span></label>
             <input id="conv" type="text" placeholder="AW-18387395398/label" [(ngModel)]="conversionId">
           </div>
           <div class="field">
-            <span class="label">Tracking added to the landing page link</span>
-            <code class="code">{{ landingUrl }}{{ utm }}</code>
+            <span class="label">Link to use in the ad (with tracking)</span>
+            <code class="code">{{ destination }}{{ utm }}</code>
           </div>
           <dl class="review">
             <div><dt>Channel</dt><dd>{{ channel().title }}</dd></div>
-            <div><dt>Specialty · branch</dt><dd>{{ specialty }} · {{ branch }}</dd></div>
+            @if (audience().showBranch) {
+              <div><dt>{{ audience().offeringLabel }} · branch</dt><dd>{{ specialty }} · {{ branch }}</dd></div>
+            } @else {
+              <div><dt>{{ audience().offeringLabel }}</dt><dd>{{ specialty }}</dd></div>
+            }
             <div><dt>Audience</dt><dd>{{ locationSummary }} · {{ selectedLanguages().join(', ') }}</dd></div>
             <div><dt>Budget</dt><dd>{{ inr(dailyBudget) }} / day · from {{ startDate }}{{ endDate ? ' to ' + endDate : '' }}</dd></div>
             <div><dt>Schedule</dt><dd>{{ schedule() === 'desk' ? 'Front-desk hours only' : 'All day' }}</dd></div>
+            <div><dt>Landing page</dt><dd>{{ landingMode() === 'page' ? 'Campaign page · ' + lpHeadline : 'Existing page' }}</dd></div>
           </dl>
         }
       }
@@ -193,18 +291,25 @@
         <span class="grow"></span>
         @if (step() < steps.length - 1) {
           <button type="button" class="btn primary" [disabled]="!stepValid" (click)="next()">Continue →</button>
+        } @else if (isLive) {
+          <button type="button" class="btn primary" [disabled]="saving || uploadsPending" (click)="save(false)">{{ saving ? 'Saving…' : 'Save changes' }}</button>
         } @else {
-          <button type="button" class="btn" (click)="save(false)">Save as draft</button>
-          <button type="button" class="btn primary" (click)="save(true)">Send for client approval</button>
+          <button type="button" class="btn" [disabled]="saving || uploadsPending" (click)="save(false)">{{ saving ? 'Saving…' : 'Save as draft' }}</button>
+          <button type="button" class="btn primary" [disabled]="saving || uploadsPending" (click)="save(true)">Send for client approval</button>
         }
       </div>
+      @if (saveError) {
+        <p class="form-error" role="alert">{{ saveError }}</p>
+      } @else if (stepProblem && step() < steps.length - 1) {
+        <p class="hint" aria-live="polite">{{ stepProblem }}</p>
+      }
     </div>
 
     <aside class="side summary">
       <div class="card">
         <span class="eyebrow">Estimate</span>
-        <div class="est"><span class="num">{{ estimate.low }}–{{ estimate.high }}</span><small>patient enquiries / month</small></div>
-        <span class="muted" style="font-size: 12px">{{ estimate.monthly }} a month at about {{ estimate.cpl }} per enquiry — sample benchmark for {{ specialty || 'this specialty' }}.</span>
+        <div class="est"><span class="num">{{ estimate.low }}–{{ estimate.high }}</span><small>{{ audience().agency ? 'business enquiries' : 'patient enquiries' }} / month</small></div>
+        <span class="muted" style="font-size: 12px">{{ estimate.monthly }} a month at about {{ estimate.cpl }} per enquiry — sample benchmark for {{ specialty || 'this ' + audience().offeringLabel.toLowerCase() }}.</span>
       </div>
 
       <div class="card">
@@ -225,6 +330,25 @@
         }
       </div>
 
+      @if (step() === 4 && landingMode() === 'page') {
+        <div class="card">
+          <span class="eyebrow">Landing page preview</span>
+          <div class="lp-preview">
+            @if (heroImage) { <img [src]="heroImage" alt=""> }
+            <div class="lp-body">
+              @if (lpOffer.trim()) { <span class="lp-offer">{{ lpOffer }}</span> }
+              <b class="lp-h">{{ lpHeadline || 'Your headline' }}</b>
+              @if (lpSubheadline.trim()) { <span class="lp-sub">{{ lpSubheadline }}</span> }
+              @if (highlightList.length) {
+                <ul>@for (h of highlightList.slice(0, 4); track $index) { <li>{{ h }}</li> }</ul>
+              }
+              <span class="lp-cta">{{ ctaText }}</span>
+            </div>
+          </div>
+          <span class="muted" style="font-size: 12px; word-break: break-all">{{ destination }}</span>
+        </div>
+      }
+
       <div class="card">
         <span class="eyebrow">Compliance check</span>
         @if (!adText) {
@@ -234,10 +358,12 @@
             @for (f of findings; track f.phrase) { <li><b>“{{ f.phrase }}”</b>{{ f.reason }}</li> }
           </ul>
           <button type="button" class="btn green" (click)="applyRewrite()">Apply suggested wording</button>
+          <span class="muted" style="font-size: 12px">Checks the ad and the landing page. You can still save — the campaign can’t be launched until it’s fixed.</span>
         } @else {
           <span class="pill green" style="align-self: flex-start">✓ No risky claims found</span>
         }
       </div>
     </aside>
   </div>
+  }
 </div>

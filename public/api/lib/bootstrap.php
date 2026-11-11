@@ -13,7 +13,9 @@ declare(strict_types=1);
 // Config
 // ---------------------------------------------------------------------------
 
-$GC_CONFIG_FILE = __DIR__ . '/../config.php';
+// config.local.php (your computer only — never committed or deployed) wins
+// over config.php (the server's settings), so one checkout can hold both.
+$GC_CONFIG_FILE = is_file(__DIR__ . '/../config.local.php') ? __DIR__ . '/../config.local.php' : __DIR__ . '/../config.php';
 if (!is_file($GC_CONFIG_FILE)) {
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');
@@ -100,8 +102,8 @@ function setup_hint(Throwable $e): ?string
         str_contains($m, '[1044]') => 'Server setup: the database user has no access to this database. Add the user to the database in hPanel → MySQL Databases.',
         str_contains($m, '[1049]') => 'Server setup: database not found. Check db.name in api/config.php.',
         str_contains($m, '[2002]'), str_contains($m, '[2005]') => 'Server setup: can’t reach the database server. Check db.host in api/config.php (usually "localhost" on Hostinger).',
-        str_contains($m, '42S02') => 'Server setup: the database tables are missing. Import database/blog_schema.sql in phpMyAdmin.',
-        str_contains($m, '42S22') => 'Server setup: the database tables are out of date. Re-import database/blog_schema.sql.',
+        str_contains($m, '42S02') => 'Server setup: database tables are missing. Import database/blog_schema.sql, then database/campaign_schema.sql, in phpMyAdmin.',
+        str_contains($m, '42S22') => 'Server setup: the database tables are out of date. Re-import the files in database/.',
         default => 'Server setup: a database error occurred. See the PHP error log for details.',
     };
 }

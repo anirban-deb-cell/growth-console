@@ -20,17 +20,25 @@ npm run build        # production build (talks to the PHP API) → dist/growth-c
 `dataSource: 'mock'` (sample data kept in the browser — the `npm start`
 default) or `'api'` (the PHP backend — the production default).
 
-## Blog API (PHP + MySQL)
+## Blog & Campaigns API (PHP + MySQL)
 
 ```
 database/blog_schema.sql      tables: admin_users, blog_posts, blog_sections, blog_uploads, audit_log
 database/blog_seed.sql        optional: the 2 posts currently on medgrowth.co.in
+database/campaign_schema.sql  tables: campaigns (ad setup + landing page), campaign_leads (enquiries), campaign_visits (landing-page visits) — import after blog_schema.sql
+database/campaign_seed.sql    optional: 2 sample campaigns for medgrowth.co.in
 public/api/
   config.example.php          copy to config.php on the server and fill in
   lib/bootstrap.php           config, JSON responses, DB, session login, audit
-  lib/blog.php                validation + row ↔ JSON mapping
+  lib/input.php               shared input validation (strings, lists, images, slugs)
+  lib/upload.php              shared image upload (re-encode, strip metadata, resize)
+  lib/blog.php                blog validation + row ↔ JSON mapping
+  lib/campaigns.php           campaign validation, status rules + row ↔ JSON mapping
+  lib/leads.php               enquiry statuses + row ↔ JSON mapping
   auth/login.php · logout.php · me.php
   blog/list.php · get.php · save.php · delete.php · upload.php   (signed-in only)
+  campaigns/list.php · get.php · save.php · status.php · delete.php · upload.php · stats.php
+  leads/list.php · update.php · delete.php
   public/posts.php · post.php                                    (read-only, for the website)
   tools/create_admin.php      CLI: create an admin login
 public/uploads/               uploaded images (PHP execution disabled)
@@ -46,6 +54,36 @@ public/uploads/               uploaded images (PHP execution disabled)
 | `api/blog/delete.php` `{id}` | POST | admin: any post · editor: drafts & in review |
 | `api/blog/upload.php` (multipart `file`) | POST | signed in; JPG/PNG/WebP ≤ 5 MB, re-encoded (metadata stripped) |
 | `api/public/posts.php` · `api/public/post.php?slug=` | GET | public; published + due scheduled posts only |
+| `api/campaigns/list.php` · `get.php?id=` | GET | signed in |
+| `api/campaigns/save.php` (create when no `id`) | POST | signed in; saves as draft / in review (live campaigns: admin only) |
+| `api/campaigns/status.php` `{id,status}` | POST | **admin**: approve & launch, pause, resume, end, send back |
+| `api/campaigns/delete.php` `{id}` | POST | not while live · admin: any · editor: drafts & in review |
+| `api/campaigns/upload.php` (multipart `file`) | POST | signed in; landing-page images, same rules as blog |
+| `api/campaigns/stats.php?id=&days=7\|30\|90\|0` | GET | signed in; visits vs enquiries — totals, per day, per traffic source, devices, keywords |
+| `api/leads/list.php` | GET | signed in; newest 2,000 enquiries + count per status |
+| `api/leads/update.php` `{id,status?,notes?}` | POST | signed in; new → contacted → qualified → won / lost |
+| `api/leads/delete.php` `{id}` | POST | **admin**; removes the person's details for good (spam / deletion requests) |
+
+Campaigns: a campaign is the ad setup (channel, audience, budget, ad copy)
+plus where the ad sends people — its own landing page on the website
+(`/campaigns/<slug>`, not in the site menu; the website side comes later) or
+an existing page. Flow: draft → in review (client approval) → active ⇄ paused
+→ ended; a campaign whose copy fails the healthcare-claims check can't be
+launched. Enquiries from the landing pages (form submissions and Call /
+WhatsApp taps) and from the website's Contact Us form land in
+`campaign_leads` (`source` = campaign / contact) and are worked in the
+**Enquiries** inbox. A contact-form enquiry whose ad tags name a campaign is
+credited to it. Every landing-page visit is logged in `campaign_visits` with its
+UTM tags (source, medium, campaign, term, content), click-ID type, referrer
+and device — no IP addresses, only a daily-rotating hash — so each
+campaign's Performance page shows conversion (enquiries ÷ visits) per
+traffic source. Spend and clicks are not stored — they'll come from the Google
+Ads / Meta Ads APIs.
+
+Client kind: a client with `kind: 'agency'` (MedGrowth itself) gets campaigns
+for winning new business — **Service** (Local SEO, Google Ads …) instead of
+Specialty, no branches, business-facing wording (see
+`src/app/core/data/audience.ts`). Hospital clients keep the patient wording.
 
 Security: session cookie is HttpOnly + SameSite=Strict; every POST also
 needs the `X-Requested-With: XMLHttpRequest` header the console sends (CSRF
@@ -58,8 +96,11 @@ from the web by `.htaccess`.
 1. **hPanel → Websites → add a subdomain** `admin.medgrowth.co.in` (own
    folder, e.g. `public_html/admin`), and turn on its free SSL.
 2. **hPanel → Databases → MySQL**: create a database + user. Open
-   phpMyAdmin → Import `database/blog_schema.sql`, then (optional)
-   `database/blog_seed.sql`.
+   phpMyAdmin → Import `database/blog_schema.sql`, then
+   `database/campaign_schema.sql`, then (optional) `database/blog_seed.sql`.
+   Already deployed? Import `campaign_schema.sql` again — it only adds the
+   tables that are missing — then run each file in `database/migrations/`
+   you haven't run yet, once, in order.
 3. `npm run build` and upload the **contents** of
    `dist/growth-console/browser/` to the subdomain folder — including the
    hidden `.htaccess` files and the `api/` and `uploads/` folders.
@@ -76,8 +117,9 @@ or `uploads/` on the server. PHP 8.1+ with the `pdo_mysql`, `gd` and
 
 ### Running the API locally
 
-Needs PHP 8.1+ and a MySQL/MariaDB server. Create `public/api/config.php`
-with `'env' => 'development'`, local DB details and
+Needs PHP 8.1+ and a MySQL/MariaDB server. Create `public/api/config.local.php`
+(used instead of `config.php` when present, so `config.php` can keep the
+server's values; never committed or deployed) with `'env' => 'development'`, local DB details and
 `'uploads_url' => '/uploads'`, import the schema,
 then:
 

@@ -26,7 +26,7 @@ export interface SeoCheck {
   weight: number;
 }
 
-type StepKey = 'check' | 'draft' | 'schema' | 'meta' | 'tracking' | 'publish';
+type StepKey = 'check' | 'draft' | 'schema' | 'meta' | 'publish';
 type StepState = 'pending' | 'running' | 'done' | 'warn';
 
 interface PipelineStep {
@@ -360,6 +360,33 @@ export class BlogEditorPage implements OnInit, OnDestroy {
     return `${this.siteUrl}/blog/${this.effectiveSlug()}`;
   }
 
+  /**
+   * The site's Search Console property. Google has no link that opens URL
+   * Inspection for a given page (its inspect link's `id` is an ID Google makes
+   * itself), so "Request indexing" opens the property and copies the post's
+   * URL, ready to paste into the inspect bar at the top.
+   */
+  get searchConsoleUrl(): string {
+    const client = this.clients.current();
+    const property = client.searchConsoleProperty || `sc-domain:${client.website}`;
+    return `https://search.google.com/search-console?resource_id=${encodeURIComponent(property)}`;
+  }
+
+  indexingLinkCopied = false;
+
+  /** Runs as the Search Console tab opens: puts the post's URL on the clipboard. */
+  copyPostUrlForIndexing(): void {
+    navigator.clipboard?.writeText(this.postUrl).then(
+      () => (this.indexingLinkCopied = true),
+      () => (this.indexingLinkCopied = false)
+    );
+  }
+
+  /** Google's Rich Results Test, already pointed at this post. */
+  get richResultsUrl(): string {
+    return `https://search.google.com/test/rich-results?url=${encodeURIComponent(this.postUrl)}`;
+  }
+
   get coverPath(): string {
     return this.postImages.map((i) => i.path.trim()).find(Boolean) ?? '';
   }
@@ -373,17 +400,15 @@ export class BlogEditorPage implements OnInit, OnDestroy {
   get seoChecks(): SeoCheck[] {
     const titleLen = this.title.trim().length;
     const descLen = this.excerpt.trim().length;
-    const conv = this.conversionId.trim();
     const sections = this.subtopics.filter((s) => s.heading.trim()).length;
     return [
       { label: 'Title length', detail: titleLen ? `${titleLen} chars · aim for 30–60` : 'Add a title', ok: titleLen >= 30 && titleLen <= 60, weight: 18 },
       { label: 'Meta description', detail: descLen ? `${descLen} chars · aim for 120–160` : 'Add a description', ok: descLen >= 120 && descLen <= 160, weight: 18 },
       { label: 'Clean URL slug', detail: this.slug ? `/blog/${this.effectiveSlug()}` : 'Generated from the title', ok: !!this.slug && this.slug.length <= 60, weight: 10 },
-      { label: 'Cover image', detail: this.coverPath ? 'Used for Google & social previews' : 'Falls back to the site logo', ok: !!this.coverPath, weight: 12 },
-      { label: 'Structured sub topics', detail: `${sections} heading${sections === 1 ? '' : 's'} · aim for 2+`, ok: sections >= 2, weight: 12 },
-      { label: 'Content depth', detail: `${this.wordCount} words · aim for 600+`, ok: this.wordCount >= 600, weight: 14 },
-      { label: 'Tags', detail: `${this.tags.length} tag${this.tags.length === 1 ? '' : 's'} · aim for 3+`, ok: this.tags.length >= 3, weight: 6 },
-      { label: 'Conversion tracking', detail: conv ? (CONVERSION_ID_PATTERN.test(conv) ? 'Google Ads tag attached' : 'Format: AW-123456789/label') : 'Contact clicks tracked in GA4 only', ok: CONVERSION_ID_PATTERN.test(conv), weight: 10 }
+      { label: 'Cover image', detail: this.coverPath ? 'Used for Google & social previews' : 'Falls back to the site logo', ok: !!this.coverPath, weight: 14 },
+      { label: 'Structured sub topics', detail: `${sections} heading${sections === 1 ? '' : 's'} · aim for 2+`, ok: sections >= 2, weight: 14 },
+      { label: 'Content depth', detail: `${this.wordCount} words · aim for 600+`, ok: this.wordCount >= 600, weight: 16 },
+      { label: 'Tags', detail: `${this.tags.length} tag${this.tags.length === 1 ? '' : 's'} · aim for 3+`, ok: this.tags.length >= 3, weight: 10 }
     ];
   }
 
@@ -395,6 +420,7 @@ export class BlogEditorPage implements OnInit, OnDestroy {
     return this.seoChecks.filter((c) => c.ok).length;
   }
 
+  /** Optional field — only flagged when something is typed that isn't AW-…/label. */
   get conversionValid(): boolean {
     return CONVERSION_ID_PATTERN.test(this.conversionId.trim());
   }
@@ -420,10 +446,6 @@ export class BlogEditorPage implements OnInit, OnDestroy {
     ].join('\n');
   }
 
-  get trackingSnippet(): string {
-    return `gtag('event', 'blog_contact_click', { post: '${this.effectiveSlug()}' });\ngtag('event', 'conversion', { send_to: '${this.conversionId.trim()}' });`;
-  }
-
   stepByKey(key: StepKey): PipelineStep | undefined {
     return this.steps.find((s) => s.key === key);
   }
@@ -441,7 +463,6 @@ export class BlogEditorPage implements OnInit, OnDestroy {
       { key: 'draft', title: 'Save draft', running: 'Saving to the database…', summary: '', state: 'pending' },
       { key: 'schema', title: 'Build JSON-LD schema', running: 'Generating structured data…', summary: '', state: 'pending' },
       { key: 'meta', title: 'Update metadata', running: 'Writing title, description & social tags…', summary: '', state: 'pending' },
-      { key: 'tracking', title: 'Attach conversion tracking', running: 'Connecting the contact buttons…', summary: '', state: 'pending' },
       { key: 'publish', title: 'Publish & notify Google', running: 'Updating sitemap.xml and llms.txt…', summary: '', state: 'pending' }
     ];
     this.runStep(0);
@@ -494,10 +515,6 @@ export class BlogEditorPage implements OnInit, OnDestroy {
         return { summary: schemaTypes.join(' · '), warn: false };
       case 'meta':
         return { summary: 'Title, description, canonical, Open Graph & Twitter card', warn: false };
-      case 'tracking':
-        return this.conversionValid
-          ? { summary: `Contact buttons fire ${this.conversionId.trim()}`, warn: false }
-          : { summary: 'No Google Ads conversion ID — clicks tracked in GA4 only', warn: true };
       case 'publish':
         return { summary: 'Live · added to sitemap.xml and llms.txt', warn: false };
     }

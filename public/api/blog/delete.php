@@ -14,7 +14,7 @@ $user = require_user();
 $id = (int) (read_json()['id'] ?? 0);
 
 $stmt = db()->prepare('SELECT id, slug, title, status FROM blog_posts WHERE id = ? AND site_key = ?');
-$stmt->execute([$id, blog_site()]);
+$stmt->execute([$id, site_key()]);
 $post = $stmt->fetch();
 if (!$post) {
     fail('Post not found.', 404);

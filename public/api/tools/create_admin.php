@@ -16,7 +16,8 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 
-$GLOBALS['GC_CONFIG'] = require __DIR__ . '/../config.php';
+// Same rule as lib/bootstrap.php: config.local.php (this computer) wins over config.php.
+$GLOBALS['GC_CONFIG'] = require is_file(__DIR__ . '/../config.local.php') ? __DIR__ . '/../config.local.php' : __DIR__ . '/../config.php';
 $cfg = $GLOBALS['GC_CONFIG']['db'];
 
 [$script, $email, $name, $role] = array_pad($argv, 4, null);

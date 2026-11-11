@@ -5,7 +5,7 @@
       <h1 style="margin: 0">{{ isEditing ? 'Edit blog post' : 'New blog post' }}</h1>
       @if (isMock) { <span class="sample-badge">Sample data</span> }
     </div>
-    <p>For {{ clients.current().name }} · {{ siteHost }}. The panel on the right shows how ready the post is for Google as you type. <b>Publish</b> then runs every step: SEO checks, JSON-LD schema, metadata, conversion tracking and sitemap.</p>
+    <p>For {{ clients.current().name }} · {{ siteHost }}. The panel on the right shows how ready the post is for Google as you type. <b>Publish</b> then runs every step: SEO checks, JSON-LD schema, metadata and sitemap.</p>
   </div>
 </header>
 
@@ -56,6 +56,8 @@
     <div class="field">
       <label for="conversionId">Google Ads conversion ID <span class="optional">(optional)</span></label>
       <input id="conversionId" type="text" placeholder="AW-18387395398/label" [(ngModel)]="conversionId">
+      @if (conversionId.trim() && !conversionValid) { <span class="hint warn">Format: AW-123456789/label — or leave empty.</span> }
+      @else { <span class="hint">Optional. When set, the post's Contact buttons and enquiries are reported to Google Ads with it.</span> }
     </div>
   </div>
 </section>
@@ -307,7 +309,7 @@
                 }
                 @case ('schema') {
                   <pre class="code">{{ jsonLdPreview }}</pre>
-                  <a class="detail-link" href="https://search.google.com/test/rich-results" target="_blank" rel="noopener">Test in Google Rich Results ↗</a>
+                  <a class="detail-link" [href]="richResultsUrl" target="_blank" rel="noopener">Test in Google Rich Results ↗</a>
                 }
                 @case ('meta') {
                   <div class="previews">
@@ -327,14 +329,6 @@
                     </div>
                   </div>
                   <pre class="code">{{ metaTags }}</pre>
-                }
-                @case ('tracking') {
-                  @if (conversionValid) {
-                    <p>Both contact buttons on this post send a Google Ads conversion when clicked:</p>
-                    <pre class="code">{{ trackingSnippet }}</pre>
-                  } @else {
-                    <p>Add a Google Ads conversion ID (e.g. <code>AW-18387395398/label</code>) in Post details to count this post's contact clicks as ad conversions.</p>
-                  }
                 }
                 @case ('publish') {
                   <p>Added to <code>sitemap.xml</code>:</p>
@@ -361,9 +355,16 @@
         <div>
           <b>{{ publishedStatus === 'scheduled' ? 'Post scheduled' : 'Post published' }}</b>
           <span>{{ publishedStatus === 'scheduled' ? 'It goes live on ' + publishedAt + ' without anyone pressing a button.' : 'Google can now find it. Request indexing to have it crawled sooner.' }}</span>
+          @if (indexingLinkCopied) {
+            <span class="indexing-steps">Post link copied. In Search Console, paste it into the <b>“Inspect any URL”</b> bar at the top, press Enter, then click <b>Request indexing</b>.</span>
+          } @else if (publishedStatus !== 'scheduled') {
+            <span class="indexing-steps">“Request indexing” opens Search Console — paste <code>{{ postUrl }}</code> into the inspect bar at the top, then click <b>Request indexing</b>.</span>
+          }
         </div>
         <div class="success-actions">
-          <a class="btn" href="https://search.google.com/search-console/inspect" target="_blank" rel="noopener">Request indexing ↗</a>
+          @if (publishedStatus !== 'scheduled') {
+            <a class="btn" [href]="searchConsoleUrl" target="_blank" rel="noopener" (click)="copyPostUrlForIndexing()" title="Copies this post's link and opens Google Search Console">Request indexing ↗</a>
+          }
           <button type="button" class="btn primary" (click)="viewAllPosts()">View all posts</button>
         </div>
       </div>

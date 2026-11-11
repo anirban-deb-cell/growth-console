@@ -57,6 +57,7 @@
                 "input": "public",
                 "ignore": [
                   "api/config.php",
+                  "api/config.local.php",
                   "uploads/blog/**"
                 ]
               }

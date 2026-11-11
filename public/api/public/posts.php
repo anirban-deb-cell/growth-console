@@ -17,7 +17,7 @@ $stmt = db()->prepare(
      WHERE site_key = ? AND (status = 'published' OR (status = 'scheduled' AND published_at <= CURDATE()))
      ORDER BY published_at DESC, id DESC"
 );
-$stmt->execute([blog_site()]);
+$stmt->execute([site_key()]);
 
 header('Cache-Control: public, max-age=300');
 ok(['posts' => array_map(fn ($r) => blog_public($r, false), $stmt->fetchAll())]);
