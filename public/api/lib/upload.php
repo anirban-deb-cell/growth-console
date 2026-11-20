@@ -71,10 +71,13 @@ function store_image_upload(array $user, string $folder): array
 
     $ext = $types[$mime];
     $relDir = $folder . '/' . date('Y/m');
-    $dir = rtrim((string) cfg('uploads_dir'), '/') . '/' . $relDir;
-    if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
-        throw new RuntimeException("Cannot create upload folder $dir");
+    $root = rtrim((string) cfg('uploads_dir'), '/');
+    $dir = $root . '/' . $relDir;
+    if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+        error_log("[upload] cannot create $dir");
+        fail(uploads_setup_hint($root), 500);
     }
+    protect_uploads_dir($root);
     $name = bin2hex(random_bytes(12)) . '.' . $ext;
     $path = "$dir/$name";
 
@@ -85,7 +88,8 @@ function store_image_upload(array $user, string $folder): array
     };
     imagedestroy($src);
     if (!$saved) {
-        throw new RuntimeException("Could not write $path");
+        error_log("[upload] could not write $path");
+        fail(uploads_setup_hint($root), 500);
     }
 
     $url = rtrim((string) cfg('uploads_url'), '/') . "/$relDir/$name";
@@ -97,3 +101,47 @@ function store_image_upload(array $user, string $folder): array
 
     return ['url' => $url, 'width' => $width, 'height' => $height];
 }
+
+/**
+ * Writes the uploads folder's .htaccess (nothing in it may ever run as code)
+ * when it is missing. The folder lives outside both build outputs, so no
+ * deploy ships or replaces this file — the first upload creates it.
+ */
+function protect_uploads_dir(string $root): void
+{
+    $file = "$root/.htaccess";
+    if (is_file($file)) {
+        return;
+    }
+    $rules = <<<'HTACCESS'
+# Uploaded images only. Nothing in this folder may ever run as code.
+Options -Indexes -ExecCGI
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phar .pl .py .cgi .sh
+RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .phar
+<FilesMatch "\.(php|phtml|phar|pl|py|cgi|sh|html?|svg|js)$">
+  Require all denied
+</FilesMatch>
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Content-Security-Policy "default-src 'none'"
+  Header set Cache-Control "public, max-age=31536000, immutable"
+</IfModule>
+
+HTACCESS;
+    if (@file_put_contents($file, $rules) === false) {
+        error_log("[upload] could not write $file");
+    }
+}
+
+/** What's wrong with the uploads folder, in words the person setting up the server can act on (admins only see this). */
+function uploads_setup_hint(string $root): string
+{
+    $why = match (true) {
+        $root === '' || str_contains($root, 'CHANGE_ME') => 'uploads_dir in api/config.php is not filled in',
+        !is_dir(dirname($root)) => 'the folder above it does not exist — check the path in uploads_dir in api/config.php',
+        is_dir($root) && !is_writable($root) => 'the folder exists but the server can\'t write to it — set its permissions to 755',
+        default => 'the server can\'t create or write to it',
+    };
+    return "Server setup: images can't be saved to $root — $why.";
+}
+

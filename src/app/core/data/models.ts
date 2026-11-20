@@ -240,16 +240,20 @@ export interface BlogSaveInput {
 
 export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'won' | 'lost';
 /** form = the landing page's enquiry form; call / whatsapp = a tap on that button (no contact details). */
-export type LeadChannel = 'form' | 'call' | 'whatsapp';
+export type LeadChannel = 'form' | 'call' | 'whatsapp' | 'email';
+/** Where a tapped button was on the website page. */
+export type TapPosition = 'header' | 'body' | 'footer' | 'floating';
 
 /** An enquiry from a campaign landing page (campaign_leads table). */
 export interface Lead {
   id: string;
-  /** campaign = a campaign landing page; contact = the website's Contact Us form. */
-  source: 'campaign' | 'contact';
+  /** campaign = a campaign landing page; contact = the website's Contact Us form; site = a tap on any other website page. */
+  source: 'campaign' | 'contact' | 'site';
   campaignId: string | null;
   campaignName: string | null;
   channel: LeadChannel;
+  /** Taps from the website: where the button was on the page. */
+  position?: TapPosition | null;
   name: string | null;
   organisation: string | null;
   phone: string | null;
@@ -270,6 +274,7 @@ export interface Lead {
   pageUrl: string | null;
   status: LeadStatus;
   notes: string;
+  /** UTC ISO 8601 ("2026-11-13T09:13:00Z"); shown in Indian time. */
   createdAt: string;
   updatedAt: string;
 }

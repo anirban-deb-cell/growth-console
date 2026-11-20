@@ -88,12 +88,15 @@ CREATE TABLE IF NOT EXISTS campaigns (
 CREATE TABLE IF NOT EXISTS campaign_leads (
   id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   site_key          VARCHAR(64)  NOT NULL DEFAULT 'medgrowth',
-  -- campaign = a campaign landing page; contact = the website's Contact Us form.
-  source            ENUM('campaign', 'contact') NOT NULL DEFAULT 'campaign',
+  -- campaign = a campaign landing page; contact = the website's Contact Us form;
+  -- site = a Call / WhatsApp / Email tap on any other page of the website.
+  source            ENUM('campaign', 'contact', 'site') NOT NULL DEFAULT 'campaign',
   campaign_id       INT UNSIGNED NULL,
   -- Kept so the enquiry still says where it came from if the campaign is deleted.
   campaign_name     VARCHAR(160) NULL,
-  channel           ENUM('form', 'call', 'whatsapp') NOT NULL DEFAULT 'form',
+  channel           ENUM('form', 'call', 'whatsapp', 'email') NOT NULL DEFAULT 'form',
+  -- Taps from the website: where the button was.
+  position          ENUM('header', 'body', 'footer', 'floating') NULL,
   name              VARCHAR(120) NULL,
   organisation      VARCHAR(160) NULL,          -- hospital / clinic / business name
   phone             VARCHAR(30)  NULL,

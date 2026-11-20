@@ -17,6 +17,7 @@ function lead_admin(array $row): array
         'campaignId' => $row['campaign_id'] === null ? null : (string) $row['campaign_id'],
         'campaignName' => $row['campaign_name'] ?? null,
         'channel' => $row['channel'],
+        'position' => $row['position'] ?? null,
         'name' => $row['name'],
         'organisation' => $row['organisation'],
         'phone' => $row['phone'],
@@ -34,14 +35,28 @@ function lead_admin(array $row): array
         'pageUrl' => $row['page_url'],
         'status' => $row['status'],
         'notes' => $row['notes'] ?? '',
-        'createdAt' => $row['created_at'],
-        'updatedAt' => $row['updated_at'],
+        'createdAt' => lead_time($row, 'created'),
+        'updatedAt' => lead_time($row, 'updated'),
     ];
 }
 
+/**
+ * The row's created_/updated_ time as UTC ISO 8601 ("2026-11-13T09:13:00Z"),
+ * so the console can show it in Indian time whatever the database server's
+ * time zone is. Needs UNIX_TIMESTAMP(...) AS <prefix>_ts in the SELECT.
+ */
+function lead_time(array $row, string $prefix): string
+{
+    $ts = $row[$prefix . '_ts'] ?? null;
+    return $ts === null ? (string) $row[$prefix . '_at'] : gmdate('Y-m-d\TH:i:s\Z', (int) $ts);
+}
+
+/** Columns every lead SELECT needs (alias l). */
+const LEAD_TIMES_SQL = 'UNIX_TIMESTAMP(l.created_at) AS created_ts, UNIX_TIMESTAMP(l.updated_at) AS updated_ts';
+
 function lead_find(int $id): ?array
 {
-    $stmt = db()->prepare('SELECT * FROM campaign_leads WHERE id = ? AND site_key = ?');
+    $stmt = db()->prepare('SELECT l.*, ' . LEAD_TIMES_SQL . ' FROM campaign_leads l WHERE l.id = ? AND l.site_key = ?');
     $stmt->execute([$id, site_key()]);
     return $stmt->fetch() ?: null;
 }

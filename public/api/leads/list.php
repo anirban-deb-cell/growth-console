@@ -13,7 +13,7 @@ require_method('GET');
 require_user();
 
 $stmt = db()->prepare(
-    'SELECT l.*, COALESCE(c.name, l.campaign_name) AS campaign_name, COALESCE(b.title, l.blog_title) AS blog_title
+    'SELECT l.*, ' . LEAD_TIMES_SQL . ', COALESCE(c.name, l.campaign_name) AS campaign_name, COALESCE(b.title, l.blog_title) AS blog_title
      FROM campaign_leads l
      LEFT JOIN campaigns c ON c.id = l.campaign_id
      LEFT JOIN blog_posts b ON b.id = l.blog_post_id

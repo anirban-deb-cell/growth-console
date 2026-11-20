@@ -25,7 +25,7 @@ $videoPosts = array_flip(array_map('intval', $videoPosts->fetchAll(PDO::FETCH_CO
 $visits = db()->prepare('SELECT v.post_id, COUNT(*) AS n FROM blog_visits v JOIN blog_posts p ON p.id = v.post_id WHERE p.site_key = ? GROUP BY v.post_id');
 $visits->execute([site_key()]);
 $visits = array_column($visits->fetchAll(), 'n', 'post_id');
-$leads = db()->prepare("SELECT blog_post_id, COUNT(*) AS n, SUM(status = 'new') AS fresh FROM campaign_leads WHERE site_key = ? AND blog_post_id IS NOT NULL GROUP BY blog_post_id");
+$leads = db()->prepare("SELECT blog_post_id, COUNT(*) AS n, SUM(status = 'new') AS fresh FROM campaign_leads WHERE site_key = ? AND blog_post_id IS NOT NULL AND channel = 'form' GROUP BY blog_post_id");
 $leads->execute([site_key()]);
 $leadStats = [];
 foreach ($leads->fetchAll() as $l) {

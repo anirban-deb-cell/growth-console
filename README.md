@@ -34,22 +34,22 @@ flowchart LR
   subgraph Admin["admin.medgrowth.co.in — Growth Console"]
     UI["Angular console<br/>(this repo, src/)"]
     API["PHP API<br/>public/api/*.php"]
-    UP[("uploads/<br/>images")]
     UI -- "/api (same origin, session cookie)" --> API
-    API --> UP
   end
 
   subgraph Site["medgrowth.co.in — website (medgrowth-ui)"]
     WEB["Angular website<br/>(prerendered pages)"]
     WPHP["PHP: blog, campaign pages,<br/>visit tracking, contact form"]
+    UP[("public_html/uploads/<br/>images")]
     WEB --> WPHP
+    WEB -. "images" .-> UP
   end
 
   DB[("MySQL<br/>blog_posts · campaigns<br/>campaign_leads · visits<br/>admin_users · audit_log")]
 
   API -- "read / write" --> DB
   WPHP -- "read posts & campaigns,<br/>write visits & enquiries" --> DB
-  WEB -. "images" .-> UP
+  API -- "saves uploads" --> UP
   Team(("Agency team")) --> UI
   Visitors(("Patients /<br/>hospital owners")) --> WEB
 ```
@@ -176,7 +176,8 @@ blog_schema.sql        admin_users, blog_posts, blog_sections, blog_uploads, blo
 campaign_schema.sql    campaigns, campaign_leads, campaign_visits   (import after blog_schema.sql)
 blog_seed.sql          optional: 2 sample posts
 campaign_seed.sql      optional: 2 sample campaigns for medgrowth.co.in
-migrations/            001_contact_enquiries.sql, 002_blog_tracking.sql — only for databases
+migrations/            001_contact_enquiries.sql, 002_blog_tracking.sql,
+                       003_uploads_on_main_site.sql, 004_site_taps.sql — only for databases
                        created before those changes; run each once, in order
 ```
 
@@ -238,7 +239,7 @@ growth-console/
 │       └── shared/             charts, icons, formatting, compliance checker
 ├── public/
 │   ├── api/                    the PHP API (copied into the build)
-│   ├── uploads/                uploaded images — .htaccess stops scripts running here
+│   ├── uploads/                local uploads only (dev); never part of the build
 │   └── .htaccess               HTTPS, SPA routing, noindex, security headers
 ├── database/                   schema, seed and migration SQL
 └── proxy.conf.cjs              dev server: /api and /uploads → local PHP
@@ -308,8 +309,11 @@ localStorage to reset).
    show hidden files). A zip uploaded and extracted in File Manager keeps them.
 4. **Server config** — in File Manager copy `api/config.example.php` to
    `api/config.php` and fill in the database name, user and password,
-   `'env' => 'production'` and
-   `'uploads_url' => 'https://admin.medgrowth.co.in/uploads'`.
+   `'env' => 'production'`, and the uploads location:
+   `'uploads_dir' => '/home/<user>/domains/medgrowth.co.in/public_html/uploads'`
+   and `'uploads_url' => 'https://medgrowth.co.in/uploads'`. Images are stored
+   in the **website's** folder and served from the main domain; the first
+   upload creates the folder and its script-blocking `.htaccess`.
 5. **First admin** — over SSH, from the subdomain folder:
    ```bash
    php api/tools/create_admin.php you@medgrowth.co.in "Your Name" admin
@@ -318,7 +322,8 @@ localStorage to reset).
 6. Flush the Hostinger CDN cache and sign in at `https://admin.medgrowth.co.in`.
 
 **Redeploying:** upload the new build over the old one. **Never delete**
-`api/config.php` or `uploads/` on the server.
+`api/config.php` on the admin site or `public_html/uploads/` on the website.
+The build contains no `uploads/` folder, so uploading it can't replace images.
 
 ---
 
@@ -352,7 +357,8 @@ kind, Search Console property), `src/environments/*.ts` (data source, API base).
   `X-Requested-With` header; the API never sends CORS headers (same origin only).
 - All queries use PDO prepared statements; all input is validated server-side.
 - Uploads are decoded and re-encoded with GD (strips EXIF/GPS and anything
-  hidden in the file); `uploads/.htaccess` stops any script running there.
+  hidden in the file); the uploads folder's `.htaccess` (written by the first upload) stops any
+  script running there.
 - `config*.php`, `lib/` and `tools/` are blocked from the web; API responses
   are never cached (`no-store`) and the console is `noindex`.
 - Production hides error details but names common setup mistakes (wrong

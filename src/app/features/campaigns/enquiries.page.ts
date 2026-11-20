@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { AuthService, apiMessage } from '../../core/auth/auth.service';
 import { campaignAudience } from '../../core/data/audience';
-import { Lead, LeadChannel, LeadStatus } from '../../core/data/models';
+import { Lead, LeadChannel, LeadStatus, TapPosition } from '../../core/data/models';
 import { ClientStore, ToastService } from '../../core/data/stores';
 import { LeadRepository } from './lead-repository';
 
@@ -10,14 +10,17 @@ type ChannelFilter = 'form' | 'taps' | 'all';
 
 const STATUS_LABEL: Record<LeadStatus, string> = { new: 'New', contacted: 'Contacted', qualified: 'Qualified', won: 'Won', lost: 'Lost' };
 const STATUS_TONE: Record<LeadStatus, string> = { new: 'blue', contacted: 'amber', qualified: 'amber', won: 'green', lost: 'grey' };
-const CHANNEL_LABEL: Record<LeadChannel, string> = { form: 'Enquiry form', call: 'Tapped Call', whatsapp: 'Tapped WhatsApp' };
+const CHANNEL_LABEL: Record<LeadChannel, string> = { form: 'Enquiry form', call: 'Tapped Call', whatsapp: 'Tapped WhatsApp', email: 'Tapped Email' };
+const POSITION_LABEL: Record<TapPosition, string> = { header: 'header', body: 'page body', footer: 'footer', floating: 'floating button' };
 
 /**
  * Enquiries inbox: every lead from the website — campaign landing pages and
  * the Contact Us form — worked through new → contacted → qualified → won /
- * lost, with the team's notes. /enquiries?campaign=12 opens it filtered to
- * one campaign; ?campaign=contact to the Contact Us form; ?campaign=blog or
- * ?campaign=blog:7 to enquiries from people who read the blog / one post.
+ * lost, with the team's notes, plus every Call / WhatsApp / Email button tap
+ * (which page, which button). /enquiries?campaign=12 opens it filtered to
+ * one campaign; ?campaign=contact to the Contact Us form; ?campaign=site to
+ * taps on the website's other pages; ?campaign=blog or ?campaign=blog:7 to
+ * enquiries from people who read the blog / one post. Times are Indian time.
  */
 @Component({
   selector: 'app-enquiries-page',
@@ -27,7 +30,7 @@ const CHANNEL_LABEL: Record<LeadChannel, string> = { form: 'Enquiry form', call:
       <header class="page-head">
         <div class="titles">
           <div class="title-row"><h1>Enquiries</h1>@if (isMock) { <span class="sample-badge">Sample data</span> }</div>
-          <p>Every enquiry from {{ clients.current().website }} — the Contact Us page and your campaign landing pages. Call back new enquiries the same day — speed wins {{ audience().agency ? 'deals' : 'patients' }}.</p>
+          <p>Every enquiry from {{ clients.current().website }} — the Contact Us page, your campaign landing pages, and Call, WhatsApp and email taps on any page. Times are Indian time (IST). Call back new enquiries the same day — speed wins {{ audience().agency ? 'deals' : 'patients' }}.</p>
         </div>
         <div class="actions"><button type="button" class="btn" [disabled]="!visible().length" (click)="downloadCsv()">Download CSV</button></div>
       </header>
@@ -40,7 +43,7 @@ const CHANNEL_LABEL: Record<LeadChannel, string> = { form: 'Enquiry form', call:
         <div class="toolbar">
           <div class="seg" role="group" aria-label="Type">
             <button type="button" [class.on]="channel() === 'form'" (click)="channel.set('form')">Form enquiries</button>
-            <button type="button" [class.on]="channel() === 'taps'" (click)="channel.set('taps')">Call &amp; WhatsApp taps</button>
+            <button type="button" [class.on]="channel() === 'taps'" (click)="channel.set('taps')">Call, WhatsApp &amp; email taps</button>
             <button type="button" [class.on]="channel() === 'all'" (click)="channel.set('all')">All</button>
           </div>
           <div class="right">
@@ -85,7 +88,9 @@ const CHANNEL_LABEL: Record<LeadChannel, string> = { form: 'Enquiry form', call:
                         }
                       </div>
                     } @else {
-                      <span class="muted">{{ channelLabel[l.channel] }} button</span>
+                      <div class="who"><span class="muted">{{ channelLabel[l.channel] }} button</span>
+                        @if (l.position) { <small>in the {{ positionLabel[l.position] }}</small> }
+                      </div>
                     }
                   </td>
                   <td>
@@ -104,6 +109,9 @@ const CHANNEL_LABEL: Record<LeadChannel, string> = { form: 'Enquiry form', call:
                         <span><span class="src contact">Contact page</span></span>
                         @if (l.blogTitle) { <small class="blog-from">after reading: <b>{{ l.blogTitle }}</b></small> }
                         @if (l.campaignName) { <small>credited to {{ l.campaignName }}</small> }
+                      } @else if (l.source === 'site') {
+                        <span><span class="src site">Website</span> <span class="path">{{ pagePath(l.pageUrl) }}</span></span>
+                        @if (l.blogTitle) { <small class="blog-from">on the post: <b>{{ l.blogTitle }}</b></small> }
                       } @else {
                         <span>{{ l.campaignName || 'Deleted campaign' }}</span>
                       }
@@ -144,7 +152,7 @@ const CHANNEL_LABEL: Record<LeadChannel, string> = { form: 'Enquiry form', call:
                 <tr><td colspan="6" class="muted" style="text-align: center; padding: 28px">
                   @if (loading()) { Loading enquiries… }
                   @else if (all().length) { No enquiries match these filters. }
-                  @else { No enquiries yet. They appear here when someone fills in the form on a campaign landing page. }
+                  @else { No enquiries yet. They appear here when someone fills in a form or taps Call, WhatsApp or Email on the website. }
                 </td></tr>
               }
             </tbody>
@@ -167,6 +175,8 @@ const CHANNEL_LABEL: Record<LeadChannel, string> = { form: 'Enquiry form', call:
     .note-chip small { color: var(--amber-ink); opacity: .75; font-size: 11px; }
     .src { display: inline-block; font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 99px; }
     .src.contact { background: var(--green-bg); color: var(--green-ink); }
+    .src.site { background: var(--blue-bg); color: var(--blue-deep); }
+    .path { font-family: var(--mono); font-size: 12px; color: var(--ink-2); word-break: break-all; }
     .blog-from b { color: var(--ink-2); font-weight: 700; }
     .conv { font-family: var(--mono); font-size: 11px; color: var(--blue-deep); }
     .contact a { font-size: 13px; font-weight: 600; }
@@ -214,6 +224,7 @@ export class EnquiriesPage implements OnInit {
   readonly statusLabel = STATUS_LABEL;
   readonly statusTone = STATUS_TONE;
   readonly channelLabel = CHANNEL_LABEL;
+  readonly positionLabel = POSITION_LABEL;
 
   ngOnInit(): void {
     if (this.campaign()) this.campaignFilter.set(this.campaign()!);
@@ -236,12 +247,13 @@ export class EnquiriesPage implements OnInit {
   campaigns = computed(() => {
     const seen = new Map<string, string>();
     if (this.all().some((l) => l.source === 'contact')) seen.set('contact', 'Contact Us page (all)');
+    if (this.all().some((l) => l.source === 'site')) seen.set('site', 'Website pages (taps)');
     if (this.all().some((l) => l.blogPostId)) seen.set('blog', 'From blog posts (all)');
     for (const l of this.all()) {
       if (l.blogPostId && !seen.has('blog:' + l.blogPostId)) seen.set('blog:' + l.blogPostId, 'Blog · ' + (l.blogTitle || 'Deleted post'));
     }
     for (const l of this.all()) {
-      if (l.source === 'contact' && !l.campaignId) continue;
+      if ((l.source === 'contact' && !l.campaignId) || l.source === 'site') continue;
       const id = this.whereKey(l);
       if (!seen.has(id)) seen.set(id, l.campaignName || 'Deleted campaign');
     }
@@ -260,11 +272,12 @@ export class EnquiriesPage implements OnInit {
       if (ch === 'form' && l.channel !== 'form') return false;
       if (ch === 'taps' && l.channel === 'form') return false;
       if (camp === 'contact' && l.source !== 'contact') return false;
+      if (camp === 'site' && l.source !== 'site') return false;
       if (camp === 'blog' && !l.blogPostId) return false;
       if (camp.startsWith('blog:') && 'blog:' + l.blogPostId !== camp) return false;
-      if (camp && camp !== 'contact' && camp !== 'blog' && !camp.startsWith('blog:') && this.whereKey(l) !== camp) return false;
+      if (camp && camp !== 'contact' && camp !== 'site' && camp !== 'blog' && !camp.startsWith('blog:') && this.whereKey(l) !== camp) return false;
       if (!q) return true;
-      return [l.name, l.organisation, l.phone, l.email, l.city, l.message, l.notes, l.service, l.blogTitle].some((v) => (v ?? '').toLowerCase().includes(q));
+      return [l.name, l.organisation, l.phone, l.email, l.city, l.message, l.notes, l.service, l.blogTitle, l.pageUrl].some((v) => (v ?? '').toLowerCase().includes(q));
     });
   });
 
@@ -341,11 +354,33 @@ export class EnquiriesPage implements OnInit {
     return l.utmMedium === 'referral' ? `${l.utmSource} (link)` : l.utmSource ?? '';
   }
 
-  /** "8 Nov, 10:42" from "2026-11-08 10:42:00". */
+  /** "8 Nov, 14:43" in Indian time, from the API's UTC "2026-11-08T09:13:00Z". */
   when(value: string): string {
     const d = new Date(value.replace(' ', 'T'));
     if (isNaN(d.getTime())) return value;
-    return d.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+    return d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+
+  /** "2026-11-08 14:43" in Indian time, for the CSV. */
+  private stamp(value: string): string {
+    const d = new Date(value.replace(' ', 'T'));
+    if (isNaN(d.getTime())) return value;
+    const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d).map((x) => [x.type, x.value]));
+    return `${p['year']}-${p['month']}-${p['day']} ${p['hour']}:${p['minute']}`;
+  }
+
+  /** "/services" from "https://medgrowth.co.in/services?utm_source=…". */
+  pagePath(url: string | null): string {
+    if (!url) return '—';
+    try {
+      return new URL(url).pathname;
+    } catch {
+      return url;
+    }
+  }
+
+  private whereFrom(l: Lead): string {
+    return l.source === 'contact' ? 'Contact page' : l.source === 'site' ? 'Website' : 'Campaign page';
   }
 
   /** Digits with the country code, for tel: and wa.me links. A bare 10-digit Indian mobile number gets 91 in front. */
@@ -356,9 +391,9 @@ export class EnquiriesPage implements OnInit {
 
   /** The enquiries shown, as a spreadsheet file. */
   downloadCsv(): void {
-    const header = ['Received', 'Status', 'Where from', 'Type', 'Name', 'Organisation', 'Role', 'Phone', 'Email', 'City', 'Service', 'Message', 'Campaign', 'Blog post', 'Google Ads conversion ID', 'Source', 'Medium', 'UTM campaign', 'Page', 'Notes'];
+    const header = ['Received (IST)', 'Status', 'Where from', 'Type', 'Button position', 'Name', 'Organisation', 'Role', 'Phone', 'Email', 'City', 'Service', 'Message', 'Campaign', 'Blog post', 'Google Ads conversion ID', 'Source', 'Medium', 'UTM campaign', 'Page', 'Notes'];
     const rows = this.visible().map((l) => [
-      l.createdAt, STATUS_LABEL[l.status], l.source === 'contact' ? 'Contact page' : 'Campaign page', CHANNEL_LABEL[l.channel], l.name, l.organisation, l.role, l.phone, l.email, l.city, l.service, l.message,
+      this.stamp(l.createdAt), STATUS_LABEL[l.status], this.whereFrom(l), CHANNEL_LABEL[l.channel], l.position ? POSITION_LABEL[l.position] : '', l.name, l.organisation, l.role, l.phone, l.email, l.city, l.service, l.message,
       l.campaignName, l.blogTitle, l.conversionId, l.utmSource, l.utmMedium, l.utmCampaign, l.pageUrl, l.notes
     ]);
     const csv = [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');

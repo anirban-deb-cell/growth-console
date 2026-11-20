@@ -40,9 +40,15 @@ return [
     ],
 
     // Where uploaded images are stored on disk, and the URL they're served from.
-    // Keep this folder OUTSIDE the Angular build output so a redeploy never wipes it.
-    'uploads_dir' => __DIR__ . '/../uploads',
-    'uploads_url' => 'https://admin.medgrowth.co.in/uploads',
+    // They are stored in the WEBSITE's public_html/uploads and served from
+    // medgrowth.co.in, so blog covers and og:image links point at the main
+    // domain. Neither project's build contains an uploads/ folder, so no
+    // deploy can overwrite it — but never delete public_html/uploads on the
+    // server. The first upload writes its .htaccess (scripts can't run there).
+    // Find the absolute path in hPanel → File Manager (both sites must be in
+    // the same Hostinger account).
+    'uploads_dir' => '/home/CHANGE_ME/domains/medgrowth.co.in/public_html/uploads',
+    'uploads_url' => 'https://medgrowth.co.in/uploads',
     'upload_max_bytes' => 5 * 1024 * 1024,
 
     // Session cookie for the admin login.
